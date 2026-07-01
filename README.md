@@ -45,10 +45,10 @@ If `python` is not the command for your Python environment, replace it with the 
 Create a configuration file:
 
 ```sh
-gpu-monitor init -c ./servers.toml
+gpu-monitor init -c ./config.toml
 ```
 
-Edit `servers.toml` and add the servers you want to monitor.
+Edit the generated TOML file and add the servers you want to monitor.
 
 The recommended approach is to keep connection details in your normal SSH config file, such as `~/.ssh/config` on Linux/macOS or `%USERPROFILE%\.ssh\config` on Windows:
 
@@ -60,7 +60,7 @@ Host server-a
     IdentityFile ~/.ssh/id_rsa
 ```
 
-Then `servers.toml` only needs the SSH host name:
+Then the GPU Monitor configuration only needs the SSH host name:
 
 ```toml
 poll_interval_seconds = 20
@@ -69,7 +69,7 @@ poll_interval_seconds = 20
 Host = "server-a"
 ```
 
-You can also put connection details directly in `servers.toml`:
+You can also put connection details directly in the GPU Monitor configuration:
 
 ```toml
 poll_interval_seconds = 20
@@ -90,7 +90,7 @@ To monitor more servers, add more `[[servers]]` blocks.
 Run GPU Monitor with:
 
 ```sh
-gpu-monitor run -c ./servers.toml -H 127.0.0.1 -p 8000
+gpu-monitor run -c ./config.toml -H 127.0.0.1 -p 8000
 ```
 
 Then open this address in your browser:
@@ -103,7 +103,7 @@ http://127.0.0.1:8000/
 
 ### No servers appear on the page
 
-Check that the `servers.toml` passed to `-c` contains at least one `[[servers]]` block and that each `Host` value is spelled correctly.
+Check that the TOML file passed to `-c` contains at least one `[[servers]]` block and that each `Host` value is spelled correctly.
 
 ### A server cannot be reached
 
@@ -117,4 +117,4 @@ If this command fails, fix the SSH login, key, port, or network issue first.
 
 ### Configuration changes do not appear
 
-Restart GPU Monitor after editing `servers.toml`.
+Restart GPU Monitor after editing the configuration file.

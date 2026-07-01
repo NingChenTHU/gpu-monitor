@@ -67,8 +67,10 @@ export function renderPrimaryProcess(processes) {
     return `<span>${escapeHtml(primary.user)} · ${procGb} GB</span>${more}`;
 }
 
-async function loadAll() {
-    renderStatus("Loading...");
+async function loadAll(showLoading = false) {
+    if (showLoading) {
+        renderStatus("Loading...");
+    }
     try {
         const response = await fetch("/api/servers");
         if (!response.ok) {
@@ -198,7 +200,7 @@ async function start() {
     renderStatus("Loading...");
     try {
         const pollInterval = await loadConfig();
-        await loadAll();
+        await loadAll(true);
         setInterval(loadAll, pollInterval);
     } catch (error) {
         console.error(error);
