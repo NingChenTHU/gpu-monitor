@@ -5,6 +5,7 @@ venv/
 .env
 .env.*
 *.log
+.worktrees/
 .DS_Store
 Thumbs.db
 build/
