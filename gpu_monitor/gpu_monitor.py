@@ -68,7 +68,14 @@ class GPUMonitor:
         self._servers = list(servers)
         self._ssh_client = ssh_client
         self._poll_interval_seconds = poll_interval_seconds
-        self._snapshots: dict[str, ServerSnapshot] = {}
+        self._snapshots: dict[str, ServerSnapshot] = {
+            server.host: ServerSnapshot(
+                name=server.host,
+                is_stale=True,
+                warnings=["Waiting for first GPU data"],
+            )
+            for server in self._servers
+        }
         self._lock = asyncio.Lock()
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._stop_event = asyncio.Event()
@@ -92,7 +99,7 @@ class GPUMonitor:
 
     async def get_all_snapshots(self) -> list[ServerSnapshot]:
         async with self._lock:
-            return list(self._snapshots.values())
+            return [self._snapshots[server.host] for server in self._servers]
 
     async def _poll_loop(self, server: ServerConfig) -> None:
         while not self._stop_event.is_set():
@@ -110,7 +117,7 @@ class GPUMonitor:
         except Exception:  # broad catch to keep polling alive
             async with self._lock:
                 previous = self._snapshots.get(server.host)
-            if previous:
+            if previous and previous.gpus:
                 snapshot = replace(
                     previous,
                     is_stale=True,

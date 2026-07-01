@@ -1,4 +1,5 @@
 const serverGrid = typeof document === "undefined" ? null : document.querySelector("#server-grid");
+const serverCards = new Map();
 
 function escapeHtml(text) {
     return text
@@ -98,98 +99,128 @@ async function loadConfig() {
 }
 
 function renderServers(servers) {
-    serverGrid.innerHTML = "";
     if (!servers.length) {
+        serverCards.clear();
         serverGrid.innerHTML = '<p class="empty">No servers configured yet.</p>';
         return;
     }
-    const sortedServers = [...servers].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    const seenServers = new Set();
+    const orderedCards = [];
 
-    sortedServers.forEach((server) => {
-        const hasWarning = Boolean(server.warnings && server.warnings.length);
-        const hasNoGpuData = !server.gpus.length;
-        const isCompact = hasWarning && hasNoGpuData;
-        const lastSeen = formatLastSeen(server.last_seen);
-        const snapshotAge = server.is_stale ? `Stale · ${lastSeen}` : `Updated ${lastSeen}`;
-        const card = document.createElement("div");
-        card.className = `server-card${server.is_stale ? " stale" : ""}${isCompact ? " compact" : ""}`;
-
-        const header = document.createElement("div");
-        header.className = "server-header";
-        header.innerHTML = `
-            <div class="server-title">
-                <div class="server-identity">
-                    <h3>${escapeHtml(server.name)}</h3>
-                </div>
-                <span class="header-meta">${snapshotAge}</span>
-            </div>
-        `;
-
-        if (hasWarning) {
-            const warning = document.createElement("div");
-            warning.className = "warning-pill";
-            warning.textContent = server.warnings[0];
-            header.querySelector(".server-identity").appendChild(warning);
+    servers.forEach((server) => {
+        const serverKey = server.name;
+        let card = serverCards.get(serverKey);
+        if (!card) {
+            card = document.createElement("div");
+            serverCards.set(serverKey, card);
         }
-
-        card.appendChild(header);
-
-        const gpuGrid = document.createElement("div");
-        gpuGrid.className = "gpu-grid";
-
-        if (!hasNoGpuData) {
-            server.gpus.forEach((gpu) => {
-                const gpuDiv = document.createElement("div");
-                gpuDiv.className = "gpu-item";
-
-                const memPercent = percent(gpu.memory_used_mb, gpu.memory_total_mb);
-                const utilPercent = clampPercent(gpu.utilization_percent ?? 0);
-                const usedGb = formatMemoryGb(gpu.memory_used_mb);
-                const totalGb = formatMemoryGb(gpu.memory_total_mb);
-                const memoryLabel = `${usedGb}/${totalGb} GB`;
-
-                const gpuHeader = document.createElement("div");
-                gpuHeader.className = "gpu-header";
-                gpuHeader.innerHTML = `
-                    <span class="gpu-name">#${gpu.index} ${escapeHtml(formatGpuName(gpu.name))}</span>
-                `;
-                gpuDiv.appendChild(gpuHeader);
-
-                const bars = document.createElement("div");
-                bars.className = "gpu-bars";
-                bars.innerHTML = `
-                    <div class="bar-row">
-                        <div class="bar memory"><span style="width: ${memPercent}%"></span></div>
-                        <span class="bar-label">${memoryLabel}</span>
-                    </div>
-                    <div class="bar-row">
-                        <div class="bar utilization"><span style="width: ${utilPercent}%"></span></div>
-                        <span class="bar-label">Util ${utilPercent}%</span>
-                    </div>
-                `;
-                gpuDiv.appendChild(bars);
-
-                if (gpu.processes && gpu.processes.length) {
-                    const processDiv = document.createElement("div");
-                    processDiv.className = "gpu-processes";
-                    processDiv.innerHTML = renderPrimaryProcess(gpu.processes);
-                    gpuDiv.appendChild(processDiv);
-                }
-
-                gpuGrid.appendChild(gpuDiv);
-            });
-        } else if (!hasWarning) {
-            const empty = document.createElement("div");
-            empty.className = "gpu-empty";
-            empty.textContent = "No GPU data";
-            gpuGrid.appendChild(empty);
-        }
-
-        if (!isCompact) {
-            card.appendChild(gpuGrid);
-        }
-        serverGrid.appendChild(card);
+        renderServerCard(card, server);
+        seenServers.add(serverKey);
+        orderedCards.push(card);
     });
+
+    for (const serverKey of serverCards.keys()) {
+        if (!seenServers.has(serverKey)) {
+            serverCards.delete(serverKey);
+        }
+    }
+
+    syncServerCards(orderedCards);
+}
+
+function syncServerCards(orderedCards) {
+    const currentCards = Array.from(serverGrid.children);
+    const isSameOrder =
+        currentCards.length === orderedCards.length &&
+        currentCards.every((card, index) => card === orderedCards[index]);
+    if (!isSameOrder) {
+        serverGrid.replaceChildren(...orderedCards);
+    }
+}
+
+function renderServerCard(card, server) {
+    const hasWarning = Boolean(server.warnings && server.warnings.length);
+    const hasNoGpuData = !server.gpus.length;
+    const isCompact = hasWarning && hasNoGpuData;
+    const lastSeen = formatLastSeen(server.last_seen);
+    const snapshotAge = server.is_stale ? `Stale · ${lastSeen}` : `Updated ${lastSeen}`;
+    card.className = `server-card${server.is_stale ? " stale" : ""}${isCompact ? " compact" : ""}`;
+    card.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "server-header";
+    header.innerHTML = `
+        <div class="server-title">
+            <div class="server-identity">
+                <h3>${escapeHtml(server.name)}</h3>
+            </div>
+            <span class="header-meta">${snapshotAge}</span>
+        </div>
+    `;
+
+    if (hasWarning) {
+        const warning = document.createElement("div");
+        warning.className = "warning-pill";
+        warning.textContent = server.warnings[0];
+        header.querySelector(".server-identity").appendChild(warning);
+    }
+
+    card.appendChild(header);
+
+    const gpuGrid = document.createElement("div");
+    gpuGrid.className = "gpu-grid";
+
+    if (!hasNoGpuData) {
+        server.gpus.forEach((gpu) => {
+            const gpuDiv = document.createElement("div");
+            gpuDiv.className = "gpu-item";
+
+            const memPercent = percent(gpu.memory_used_mb, gpu.memory_total_mb);
+            const utilPercent = clampPercent(gpu.utilization_percent ?? 0);
+            const usedGb = formatMemoryGb(gpu.memory_used_mb);
+            const totalGb = formatMemoryGb(gpu.memory_total_mb);
+            const memoryLabel = `${usedGb}/${totalGb} GB`;
+
+            const gpuHeader = document.createElement("div");
+            gpuHeader.className = "gpu-header";
+            gpuHeader.innerHTML = `
+                <span class="gpu-name">#${gpu.index} ${escapeHtml(formatGpuName(gpu.name))}</span>
+            `;
+            gpuDiv.appendChild(gpuHeader);
+
+            const bars = document.createElement("div");
+            bars.className = "gpu-bars";
+            bars.innerHTML = `
+                <div class="bar-row">
+                    <div class="bar memory"><span style="width: ${memPercent}%"></span></div>
+                    <span class="bar-label">${memoryLabel}</span>
+                </div>
+                <div class="bar-row">
+                    <div class="bar utilization"><span style="width: ${utilPercent}%"></span></div>
+                    <span class="bar-label">Util ${utilPercent}%</span>
+                </div>
+            `;
+            gpuDiv.appendChild(bars);
+
+            if (gpu.processes && gpu.processes.length) {
+                const processDiv = document.createElement("div");
+                processDiv.className = "gpu-processes";
+                processDiv.innerHTML = renderPrimaryProcess(gpu.processes);
+                gpuDiv.appendChild(processDiv);
+            }
+
+            gpuGrid.appendChild(gpuDiv);
+        });
+    } else if (!hasWarning) {
+        const empty = document.createElement("div");
+        empty.className = "gpu-empty";
+        empty.textContent = "No GPU data";
+        gpuGrid.appendChild(empty);
+    }
+
+    if (!isCompact) {
+        card.appendChild(gpuGrid);
+    }
 }
 
 function renderStatus(message, variant = "") {

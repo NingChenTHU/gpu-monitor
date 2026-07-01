@@ -15,6 +15,19 @@ SERVER = ServerConfig(host="gpu-a")
 
 
 class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_initial_snapshots_include_all_configured_servers_in_order(self) -> None:
+        servers = [
+            ServerConfig(host="gpu-b"),
+            ServerConfig(host="gpu-a"),
+        ]
+        monitor = GPUMonitor(servers, FakeSSHClient())
+
+        snapshots = await monitor.get_all_snapshots()
+
+        self.assertEqual([snapshot.name for snapshot in snapshots], ["gpu-b", "gpu-a"])
+        self.assertEqual([snapshot.gpus for snapshot in snapshots], [[], []])
+        self.assertEqual([snapshot.last_seen for snapshot in snapshots], [None, None])
+
     async def test_failed_poll_preserves_previous_snapshot_as_stale(self) -> None:
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client)
