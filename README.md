@@ -35,7 +35,7 @@ Replace `server-a` with your own SSH host name or server address.
 Install GPU Monitor from PyPI:
 
 ```sh
-python -m pip install gpu-monitor
+python -m pip install gpu-server-monitor
 ```
 
 If `python` is not the command for your Python environment, replace it with the interpreter you normally use.
