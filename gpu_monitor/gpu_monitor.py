@@ -5,8 +5,8 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from io import StringIO
 
-from app.config import ServerConfig
-from app.ssh_client import SSHMonitorClient
+from gpu_monitor.config import ServerConfig
+from gpu_monitor.ssh_client import SSHMonitorClient
 
 _DEFAULT_PROBE_TIMEOUT_SECONDS = 5.0
 
@@ -255,3 +255,4 @@ def _parse_gpu_row(row: list[str]) -> GPUStatus | None:
         utilization_percent=utilization_percent,
         processes=[],
     )
+

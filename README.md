@@ -1,13 +1,17 @@
 # GPU Monitor
 
-GPU Monitor is a browser-based tool for checking GPU usage across multiple servers. After you configure your servers, you can open the web page to see each GPU's memory usage, utilization, and active compute processes.
+GPU Monitor is a browser-based tool for checking GPU usage across multiple servers. Configure your servers, start the web service, and open the page to see GPU memory usage, utilization, and active compute processes.
+
+## Preview
+
+![GPU Monitor screenshot](https://raw.githubusercontent.com/NingChenTHU/gpu-monitor/main/docs/assets/gpu-monitor-screenshot.png)
 
 ## What It Is For
 
 - Check whether GPUs are currently available across multiple servers.
 - View GPU memory usage and utilization.
 - See which users and processes are using GPUs.
-- Keep the last successful data visible when a server is temporarily unreachable, with a stale-data warning.
+- Keep the last successful data visible when a server is temporarily unreachable.
 
 ## Requirements
 
@@ -28,19 +32,23 @@ Replace `server-a` with your own SSH host name or server address.
 
 ## Installation
 
-Run this command from the project directory:
+Install GPU Monitor from PyPI:
 
 ```sh
-python -m pip install -e .
+python -m pip install gpu-monitor
 ```
 
 If `python` is not the command for your Python environment, replace it with the interpreter you normally use.
 
 ## Server Configuration
 
-Edit `servers.toml` in the project root to configure the servers you want to monitor.
+Create a configuration file:
 
-GPU Monitor runs SSH in non-interactive mode automatically, so you do not need to set `BatchMode` yourself. Each probe uses a 5-second timeout by default. Set `ConnectTimeout` for a server if it needs a different timeout.
+```sh
+gpu-monitor init -c ./servers.toml
+```
+
+Edit `servers.toml` and add the servers you want to monitor.
 
 The recommended approach is to keep connection details in your normal SSH config file, such as `~/.ssh/config` on Linux/macOS or `%USERPROFILE%\.ssh\config` on Windows:
 
@@ -61,7 +69,7 @@ poll_interval_seconds = 20
 Host = "server-a"
 ```
 
-You can also put the connection details directly in `servers.toml`:
+You can also put connection details directly in `servers.toml`:
 
 ```toml
 poll_interval_seconds = 20
@@ -72,16 +80,17 @@ HostName = "10.0.0.12"
 User = "your_username"
 Port = 22
 IdentityFile = "~/.ssh/id_rsa"
+ConnectTimeout = 5
 ```
 
 To monitor more servers, add more `[[servers]]` blocks.
 
 ## Running
 
-Run this command from the project directory:
+Run GPU Monitor with:
 
 ```sh
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+gpu-monitor run -c ./servers.toml -H 127.0.0.1 -p 8000
 ```
 
 Then open this address in your browser:
@@ -90,20 +99,11 @@ Then open this address in your browser:
 http://127.0.0.1:8000/
 ```
 
-## Page Guide
-
-The page groups GPU status by server. Common fields include:
-
-- Memory: used GPU memory and total GPU memory.
-- Utilization: current GPU compute utilization.
-- Processes: active GPU processes, including user and memory usage when available.
-- Stale status: shown when the latest server check failed and the page is displaying the last successful data.
-
 ## Troubleshooting
 
 ### No servers appear on the page
 
-Check that `servers.toml` contains at least one `[[servers]]` block and that the `Host` value is spelled correctly.
+Check that the `servers.toml` passed to `-c` contains at least one `[[servers]]` block and that each `Host` value is spelled correctly.
 
 ### A server cannot be reached
 

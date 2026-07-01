@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from app.config import ServerConfig
+from gpu_monitor.config import ServerConfig
 
 
 class SSHMonitorClient:
@@ -88,3 +88,4 @@ def _format_ssh_config_value(value: Any, *, quote: bool = False) -> str:
         escaped = text.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     return text
+

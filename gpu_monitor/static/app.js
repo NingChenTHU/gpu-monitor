@@ -1,4 +1,4 @@
-const serverGrid = document.querySelector("#server-grid");
+const serverGrid = typeof document === "undefined" ? null : document.querySelector("#server-grid");
 
 function escapeHtml(text) {
     return text
@@ -46,16 +46,16 @@ function formatMemoryGb(memoryMb) {
     return Math.max(0, Math.round(value / 1024));
 }
 
-function formatGpuName(name) {
+export function formatGpuName(name) {
     const normalized = String(name || "").toUpperCase();
-    const match = normalized.match(/(?:RTX\s*)?(\d{4})|A(\d{3})/);
+    const match = normalized.match(/(A\d{3,4}|\d{4})/);
     if (!match) {
         return name || "GPU";
     }
-    return match[1] || `A${match[2]}`;
+    return match[1];
 }
 
-function renderPrimaryProcess(processes) {
+export function renderPrimaryProcess(processes) {
     if (!processes || !processes.length) {
         return "";
     }
@@ -63,8 +63,8 @@ function renderPrimaryProcess(processes) {
         (a, b) => Number(b.memory_mb || 0) - Number(a.memory_mb || 0),
     )[0];
     const procGb = formatMemoryGb(primary.memory_mb);
-    const suffix = processes.length > 1 ? " ..." : "";
-    return `<span>${escapeHtml(primary.user)} · ${procGb} GB${suffix}</span>`;
+    const more = processes.length > 1 ? '<span class="process-more">...</span>' : "";
+    return `<span>${escapeHtml(primary.user)} · ${procGb} GB</span>${more}`;
 }
 
 async function loadAll() {
@@ -206,4 +206,8 @@ async function start() {
     }
 }
 
-start();
+if (serverGrid) {
+    start();
+}
+
+

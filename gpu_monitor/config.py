@@ -4,9 +4,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "servers.toml"
-
 
 @dataclass(slots=True)
 class ServerConfig:
@@ -14,8 +11,8 @@ class ServerConfig:
     ssh_options: dict[str, Any] = field(default_factory=dict)
 
 
-def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> tuple[list[ServerConfig], int]:
-    config_path = Path(path)
+def load_config(path: Path | str) -> tuple[list[ServerConfig], int]:
+    config_path = Path(path).expanduser()
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 

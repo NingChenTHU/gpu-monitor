@@ -1,21 +1,41 @@
 [project]
 name = "gpu-monitor"
-version = "0.1.0"
+version = "0.2.0"
 description = "GPU cluster monitoring service"
+readme = "README.md"
 authors = [
     { name = "Chen Ning", email = "ningchenthu@gmail.com" }
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0"
 ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Monitoring"
+]
+
+[project.urls]
+Homepage = "https://github.com/NingChenTHU/gpu-monitor"
+Repository = "https://github.com/NingChenTHU/gpu-monitor"
+Issues = "https://github.com/NingChenTHU/gpu-monitor/issues"
+
+[project.scripts]
+gpu-monitor = "gpu_monitor.cli:main"
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*"]
+include = ["gpu_monitor*"]
+
+[tool.setuptools.package-data]
+gpu_monitor = ["static/*"]

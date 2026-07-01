@@ -235,6 +235,12 @@ h1 {
     font-size: 0.68rem;
 }
 
+.gpu-processes .process-more {
+    justify-content: center;
+    min-width: 1.45rem;
+    padding-inline: 0.42rem;
+}
+
 .gpu-empty {
     min-height: 4rem;
     border: 1px dashed var(--line);
@@ -267,3 +273,4 @@ h1 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
