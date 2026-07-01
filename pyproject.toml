@@ -1,5 +1,5 @@
 [project]
-name = "gpu-monitor"
+name = "gpu-server-monitor"
 version = "0.2.0"
 description = "GPU cluster monitoring service"
 readme = "README.md"
