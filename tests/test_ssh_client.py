@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import contextmanager
 import unittest
 from pathlib import Path
@@ -156,6 +157,28 @@ class SSHMonitorClientTests(unittest.IsolatedAsyncioTestCase):
             "SSH probe failed with exit code 2: nvidia-smi",
         )
 
+    async def test_cancelled_ssh_command_kills_child_process(self) -> None:
+        process = BlockingProcess()
+
+        async def fake_create_subprocess_exec(*args: str, **kwargs: Any) -> object:
+            return process
+
+        with patch(
+            "gpu_monitor.ssh_client.asyncio.create_subprocess_exec",
+            fake_create_subprocess_exec,
+        ):
+            server = ServerConfig(host="gpu-a")
+            client = SSHMonitorClient([server])
+            task = asyncio.create_task(client.run_probe(server, "nvidia-smi"))
+            await process.started.wait()
+
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        self.assertTrue(process.killed)
+        self.assertTrue(process.waited)
+
 
 class FakeProcess:
     def __init__(
@@ -177,6 +200,27 @@ class FakeProcess:
 
     async def wait(self) -> int:
         return self.returncode
+
+
+class BlockingProcess(FakeProcess):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.killed = False
+        self.waited = False
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        self.started.set()
+        await asyncio.Event().wait()
+        return b"", b""
+
+    def kill(self) -> None:
+        self.killed = True
+        super().kill()
+
+    async def wait(self) -> int:
+        self.waited = True
+        return await super().wait()
 
 
 @contextmanager
