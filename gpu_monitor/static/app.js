@@ -53,12 +53,7 @@ function formatMemoryGb(memoryMb) {
 }
 
 function formatGpuName(name) {
-    const normalized = String(name || "").toUpperCase();
-    const match = normalized.match(/(A\d{3,4}|\d{4})/);
-    if (!match) {
-        return name || "GPU";
-    }
-    return match[1];
+    return String(name || "GPU").replace(/^NVIDIA\s+/i, "");
 }
 
 function renderPrimaryProcess(processes) {
@@ -214,8 +209,9 @@ function renderServerCard(card, server) {
 
             const gpuHeader = document.createElement("div");
             gpuHeader.className = "gpu-header";
+            const gpuName = formatGpuName(gpu.name);
             gpuHeader.innerHTML = `
-                <span class="gpu-name">#${gpu.index} ${escapeHtml(formatGpuName(gpu.name))}</span>
+                <span class="gpu-name" title="${escapeHtml(gpuName)}">#${gpu.index} ${escapeHtml(gpuName)}</span>
             `;
             gpuDiv.appendChild(gpuHeader);
 

@@ -269,6 +269,90 @@ test("refresh reuses existing server cards for stable server names", async () =>
     assert.equal(serverGrid.children[1], firstCards[1]);
 });
 
+test("gpu names remove only the nvidia prefix", async () => {
+    const serverGrid = new FakeElement();
+    const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
+
+    globalThis.document = {
+        querySelector(selector) {
+            if (selector === "#server-grid") {
+                return serverGrid;
+            }
+            if (selector === "#refresh-button") {
+                return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
+            }
+            return null;
+        },
+        createElement() {
+            return new FakeElement();
+        },
+    };
+    globalThis.setInterval = () => 1;
+    globalThis.fetch = async (url, options) => {
+        if (url === "/api/config") {
+            return {
+                ok: true,
+                async json() {
+                    return { poll_interval_seconds: 20, servers: ["gpu-a"] };
+                },
+            };
+        }
+        if (url === "/api/servers/gpu-a/refresh" && options?.method === "POST") {
+            return {
+                ok: true,
+                async json() {
+                    return {
+                        name: "gpu-a",
+                        last_seen: "2026-01-01T12:00:00Z",
+                        is_stale: false,
+                        warnings: [],
+                        gpus: [
+                            {
+                                index: 0,
+                                name: "NVIDIA H100 PCIe",
+                                memory_used_mb: 1000,
+                                memory_total_mb: 81559,
+                                utilization_percent: 20,
+                                processes: [],
+                            },
+                            {
+                                index: 1,
+                                name: "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+                                memory_used_mb: 2000,
+                                memory_total_mb: 98304,
+                                utilization_percent: 40,
+                                processes: [],
+                            },
+                        ],
+                    };
+                },
+            };
+        }
+        throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const appUrl = pathToFileURL("gpu_monitor/static/app.js");
+    appUrl.search = `?t=${Date.now()}-gpu-name`;
+    await import(appUrl.href);
+    await waitFor(() => serverGrid.children.length === 1);
+
+    const gpuGrid = serverGrid.children[0].children[1];
+    const firstGpuHeader = gpuGrid.children[0].children[0].innerHTML;
+    const secondGpuHeader = gpuGrid.children[1].children[0].innerHTML;
+
+    assert.match(firstGpuHeader, /#0 H100 PCIe/);
+    assert.doesNotMatch(firstGpuHeader, /NVIDIA H100 PCIe/);
+    assert.match(secondGpuHeader, /#1 RTX PRO 6000 Blackwell Workstation Edition/);
+    assert.match(
+        secondGpuHeader,
+        /title="RTX PRO 6000 Blackwell Workstation Edition"/,
+    );
+});
+
 test("per-server refresh renders fast servers before slow servers finish", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();

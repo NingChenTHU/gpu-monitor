@@ -1,56 +1,64 @@
 # GPU Monitor
 
-GPU Monitor is a browser-based tool for checking GPU usage across multiple servers. Configure your servers, start the web service, and open the page to see GPU memory usage, utilization, and active compute processes.
+GPU Monitor is a small browser-based dashboard for checking GPU usage across SSH-accessible servers. It shows GPU memory usage, utilization, and active compute users without requiring an agent on the target machines.
 
 ## Preview
 
 ![GPU Monitor screenshot](https://raw.githubusercontent.com/NingChenTHU/gpu-monitor/main/docs/assets/gpu-monitor-screenshot.png)
 
-## What It Is For
+## Features
 
-- Check whether GPUs are currently available across multiple servers.
-- View GPU memory usage and utilization.
-- See which users and processes are using GPUs.
-- Keep the last successful data visible when a server is temporarily unreachable.
+- Monitor multiple GPU servers from one page.
+- Show GPU memory usage, utilization, and active process owners.
+- Refresh automatically and provide a manual Refresh button.
+- Keep the last known GPU data visible when a server is temporarily unreachable.
+- Update server cards independently, so a slow host does not block the rest of the dashboard.
 
 ## Requirements
 
-Before using GPU Monitor, make sure you have:
+- Python 3.11 or newer.
+- SSH access from the machine running GPU Monitor to each target server.
+- NVIDIA drivers and `nvidia-smi` on each target server.
 
-- Python 3.11 or newer installed.
-- SSH access from this machine to the servers you want to monitor.
-- NVIDIA drivers installed on the target servers.
-- `nvidia-smi` available on the target servers.
-
-You can verify SSH and GPU access with:
+Before configuring GPU Monitor, verify that SSH can run `nvidia-smi`:
 
 ```sh
 ssh server-a nvidia-smi
 ```
 
-Replace `server-a` with your own SSH host name or server address.
-
 ## Installation
 
-Install GPU Monitor from PyPI:
+Install from PyPI:
 
 ```sh
 python -m pip install gpu-server-monitor
 ```
 
-If `python` is not the command for your Python environment, replace it with the interpreter you normally use.
+## Quick Start
 
-## Server Configuration
-
-Create a configuration file:
+Create a sample configuration file:
 
 ```sh
 gpu-monitor init -c ./config.toml
 ```
 
-Edit the generated TOML file and add the servers you want to monitor.
+Edit `config.toml`, then start the web service:
 
-The recommended approach is to keep connection details in your normal SSH config file, such as `~/.ssh/config` on Linux/macOS or `%USERPROFILE%\.ssh\config` on Windows:
+```sh
+gpu-monitor run -c ./config.toml -H 127.0.0.1 -p 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/
+```
+
+## Configuration
+
+GPU Monitor uses a TOML configuration file.
+
+The recommended setup is to keep SSH connection details in your normal SSH config file:
 
 ```sshconfig
 Host server-a
@@ -60,7 +68,7 @@ Host server-a
     IdentityFile ~/.ssh/id_rsa
 ```
 
-Then the GPU Monitor configuration only needs the SSH host name:
+Then reference the SSH host name from GPU Monitor:
 
 ```toml
 poll_interval_seconds = 20
@@ -69,7 +77,7 @@ poll_interval_seconds = 20
 Host = "server-a"
 ```
 
-You can also put connection details directly in the GPU Monitor configuration:
+You can also put SSH options directly in the GPU Monitor config:
 
 ```toml
 poll_interval_seconds = 20
@@ -83,37 +91,25 @@ IdentityFile = "~/.ssh/id_rsa"
 ConnectTimeout = 5
 ```
 
-To monitor more servers, add more `[[servers]]` blocks.
+Add more `[[servers]]` blocks to monitor more machines.
 
-## Running
-
-Run GPU Monitor with:
-
-```sh
-gpu-monitor run -c ./config.toml -H 127.0.0.1 -p 8000
-```
-
-Then open this address in your browser:
-
-```text
-http://127.0.0.1:8000/
-```
+`poll_interval_seconds` controls the automatic refresh interval. Restart GPU Monitor after changing the configuration file.
 
 ## Troubleshooting
 
-### No servers appear on the page
+### No servers appear
 
-Check that the TOML file passed to `-c` contains at least one `[[servers]]` block and that each `Host` value is spelled correctly.
+Check that the config file passed to `-c` contains at least one `[[servers]]` block.
 
-### A server cannot be reached
+### A server shows stale data or cannot be reached
 
-First test the connection from your terminal:
+Test the same host from your terminal:
 
 ```sh
 ssh server-a nvidia-smi
 ```
 
-If this command fails, fix the SSH login, key, port, or network issue first.
+If that command fails, fix the SSH login, key, port, or network issue first.
 
 ### Configuration changes do not appear
 

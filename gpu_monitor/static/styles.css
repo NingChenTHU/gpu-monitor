@@ -211,8 +211,9 @@ h1 {
 
 .gpu-header {
     min-height: 0;
-    display: flex;
-    align-items: flex-start;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
     color: #0f172a;
     font-size: 0.82rem;
     font-weight: 760;
@@ -220,6 +221,10 @@ h1 {
 }
 
 .gpu-name {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
