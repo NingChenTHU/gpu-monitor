@@ -33,7 +33,7 @@ def create_app(config_path: Path) -> FastAPI:
         finally:
             ssh_client.close()
 
-    app = FastAPI(title="GPU Monitor", version="0.2.3", lifespan=lifespan)
+    app = FastAPI(title="GPU Monitor", version="0.3.0", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.post("/api/servers/{server_name}/refresh", response_model=ServerSnapshot)
