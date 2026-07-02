@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -18,30 +18,45 @@ def create_app(config_path: Path | str) -> FastAPI:
     async def lifespan(app: FastAPI):
         servers, poll_interval_seconds = load_config(config_path)
         app.state.poll_interval_seconds = poll_interval_seconds
+        app.state.server_names = [server.host for server in servers]
         ssh_client = SSHMonitorClient(servers)
         gpu_monitor = GPUMonitor(
             servers,
             ssh_client,
             poll_interval_seconds=poll_interval_seconds,
         )
-        await gpu_monitor.start()
         app.state.gpu_monitor = gpu_monitor
         try:
             yield
         finally:
-            await gpu_monitor.stop()
             ssh_client.close()
 
     app = FastAPI(title="GPU Monitor", version="0.2.3", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    @app.get("/api/servers", response_model=list[ServerSnapshot])
-    async def list_servers(request: Request) -> list[ServerSnapshot]:
-        return await request.app.state.gpu_monitor.get_all_snapshots()
+    @app.post("/api/servers/refresh", response_model=list[ServerSnapshot])
+    async def refresh_servers(
+        request: Request, force: bool = False
+    ) -> list[ServerSnapshot]:
+        return await request.app.state.gpu_monitor.refresh_all_snapshots(force=force)
+
+    @app.post("/api/servers/{server_name}/refresh", response_model=ServerSnapshot)
+    async def refresh_server(
+        request: Request, server_name: str, force: bool = False
+    ) -> ServerSnapshot:
+        try:
+            return await request.app.state.gpu_monitor.refresh_snapshot(
+                server_name, force=force
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Server not found") from exc
 
     @app.get("/api/config")
-    async def get_config(request: Request) -> dict[str, int]:
-        return {"poll_interval_seconds": request.app.state.poll_interval_seconds}
+    async def get_config(request: Request) -> dict[str, int | list[str]]:
+        return {
+            "poll_interval_seconds": request.app.state.poll_interval_seconds,
+            "servers": request.app.state.server_names,
+        }
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:

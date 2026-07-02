@@ -24,29 +24,66 @@ class ApiTests(unittest.TestCase):
 
         paths = {route.path for route in app.routes}
 
-        self.assertIn("/api/servers", paths)
+        self.assertIn("/api/servers/refresh", paths)
+        self.assertIn("/api/servers/{server_name}/refresh", paths)
         self.assertIn("/api/config", paths)
 
-    def test_server_api_returns_snapshot_list(self) -> None:
+    def test_refresh_api_returns_snapshot_list(self) -> None:
         app = create_test_app()
         app.state.gpu_monitor = FakeMonitor()
         client = TestClient(app)
 
-        response = client.get("/api/servers")
+        response = client.post("/api/servers/refresh")
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.json(), list)
         self.assertEqual(response.json()[0]["name"], "gpu-a")
 
+    def test_refresh_api_passes_force_flag(self) -> None:
+        app = create_test_app()
+        monitor = FakeMonitor()
+        app.state.gpu_monitor = monitor
+        client = TestClient(app)
+
+        response = client.post("/api/servers/refresh?force=true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(monitor.force_values, [True])
+
+    def test_single_server_refresh_returns_one_snapshot(self) -> None:
+        app = create_test_app()
+        monitor = FakeMonitor()
+        app.state.gpu_monitor = monitor
+        client = TestClient(app)
+
+        response = client.post("/api/servers/gpu-a/refresh?force=true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "gpu-a")
+        self.assertEqual(monitor.single_refreshes, [("gpu-a", True)])
+
+    def test_single_server_refresh_returns_404_for_unknown_server(self) -> None:
+        app = create_test_app()
+        app.state.gpu_monitor = FakeMonitor()
+        client = TestClient(app)
+
+        response = client.post("/api/servers/missing/refresh")
+
+        self.assertEqual(response.status_code, 404)
+
     def test_config_api_returns_poll_interval_seconds(self) -> None:
         app = create_test_app()
         app.state.poll_interval_seconds = 25
+        app.state.server_names = ["gpu-a", "gpu-b"]
         client = TestClient(app)
 
         response = client.get("/api/config")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"poll_interval_seconds": 25})
+        self.assertEqual(
+            response.json(),
+            {"poll_interval_seconds": 25, "servers": ["gpu-a", "gpu-b"]},
+        )
 
 
 def create_test_app():
@@ -62,6 +99,20 @@ def create_test_app():
 class FakeMonitor:
     def __init__(self) -> None:
         self.snapshot = ServerSnapshot(name="gpu-a")
+        self.force_values: list[bool] = []
+        self.single_refreshes: list[tuple[str, bool]] = []
 
     async def get_all_snapshots(self) -> list[ServerSnapshot]:
         return [self.snapshot]
+
+    async def refresh_all_snapshots(self, *, force: bool = False) -> list[ServerSnapshot]:
+        self.force_values.append(force)
+        return [self.snapshot]
+
+    async def refresh_snapshot(
+        self, server_name: str, *, force: bool = False
+    ) -> ServerSnapshot:
+        if server_name != self.snapshot.name:
+            raise KeyError(server_name)
+        self.single_refreshes.append((server_name, force))
+        return self.snapshot

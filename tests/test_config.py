@@ -105,6 +105,29 @@ class ConfigPathTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "poll_interval_seconds must be defined"):
                 load_config(config_path)
 
+    def test_load_config_allows_short_positive_poll_interval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "servers.toml"
+            config_path.write_text(
+                'poll_interval_seconds = 3\n[[servers]]\nHost = "gpu-a"\n',
+                encoding="utf-8",
+            )
+
+            _, poll_interval_seconds = load_config(config_path)
+
+        self.assertEqual(poll_interval_seconds, 3)
+
+    def test_load_config_requires_positive_poll_interval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "servers.toml"
+            config_path.write_text(
+                'poll_interval_seconds = 0\n[[servers]]\nHost = "gpu-a"\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "poll_interval_seconds must be positive"):
+                load_config(config_path)
+
     def test_load_config_raises_for_missing_explicit_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = Path(tmp_dir) / "servers.toml"

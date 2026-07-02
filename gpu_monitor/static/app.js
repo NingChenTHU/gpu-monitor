@@ -1,5 +1,10 @@
 const serverGrid = typeof document === "undefined" ? null : document.querySelector("#server-grid");
+const refreshButton = typeof document === "undefined" ? null : document.querySelector("#refresh-button");
+const refreshStatus = typeof document === "undefined" ? null : document.querySelector("#refresh-status");
 const serverCards = new Map();
+const serverSnapshots = new Map();
+const refreshingServers = new Set();
+let serverNames = [];
 
 function escapeHtml(text) {
     return text
@@ -68,20 +73,46 @@ export function renderPrimaryProcess(processes) {
     return `<span>${escapeHtml(primary.user)} · ${procGb} GB</span>${more}`;
 }
 
-async function loadAll(showLoading = false) {
+async function loadAll({ showLoading = false, force = false } = {}) {
     if (showLoading) {
         renderStatus("Loading...");
     }
     try {
-        const response = await fetch("/api/servers");
-        if (!response.ok) {
-            throw new Error(`/api/servers responded with ${response.status}`);
-        }
-        const servers = await response.json();
-        renderServers(servers);
+        renderRefreshStatus("");
+        renderPlaceholders();
+        await refreshServers({ force });
     } catch (error) {
         console.error(error);
-        renderStatus(`Error: ${error.message}`, "error");
+        if (hasExistingContent()) {
+            renderRefreshStatus(`Error: ${error.message}`, "error");
+        } else {
+            renderStatus(`Error: ${error.message}`, "error");
+        }
+    }
+}
+
+async function refreshServers({ force = false } = {}) {
+    await Promise.all(serverNames.map((serverName) => refreshServer(serverName, { force })));
+}
+
+async function refreshServer(serverName, { force = false } = {}) {
+    if (refreshingServers.has(serverName)) {
+        return;
+    }
+    const encodedName = encodeURIComponent(serverName);
+    const url = `/api/servers/${encodedName}/refresh${force ? "?force=true" : ""}`;
+    setServerRefreshing(serverName, true);
+    try {
+        const response = await fetch(url, { method: "POST" });
+        if (!response.ok) {
+            throw new Error(`${url} responded with ${response.status}`);
+        }
+        renderSingleServer(await response.json());
+    } catch (error) {
+        console.error(error);
+        renderRefreshStatus(`Error: ${error.message}`, "error");
+    } finally {
+        setServerRefreshing(serverName, false);
     }
 }
 
@@ -95,11 +126,15 @@ async function loadConfig() {
     if (!Number.isFinite(pollIntervalSeconds) || pollIntervalSeconds <= 0) {
         throw new Error("Invalid poll interval");
     }
+    if (!Array.isArray(config.servers)) {
+        throw new Error("Invalid server list");
+    }
+    serverNames = config.servers.map((serverName) => String(serverName));
     return pollIntervalSeconds * 1000;
 }
 
-function renderServers(servers) {
-    if (!servers.length) {
+function renderPlaceholders() {
+    if (!serverNames.length) {
         serverCards.clear();
         serverGrid.innerHTML = '<p class="empty">No servers configured yet.</p>';
         return;
@@ -107,14 +142,14 @@ function renderServers(servers) {
     const seenServers = new Set();
     const orderedCards = [];
 
-    servers.forEach((server) => {
-        const serverKey = server.name;
+    serverNames.forEach((serverKey) => {
         let card = serverCards.get(serverKey);
         if (!card) {
             card = document.createElement("div");
             serverCards.set(serverKey, card);
+            serverSnapshots.set(serverKey, placeholderSnapshot(serverKey));
+            renderServerCard(card, serverSnapshots.get(serverKey));
         }
-        renderServerCard(card, server);
         seenServers.add(serverKey);
         orderedCards.push(card);
     });
@@ -122,10 +157,45 @@ function renderServers(servers) {
     for (const serverKey of serverCards.keys()) {
         if (!seenServers.has(serverKey)) {
             serverCards.delete(serverKey);
+            serverSnapshots.delete(serverKey);
         }
     }
 
     syncServerCards(orderedCards);
+}
+
+function placeholderSnapshot(serverName) {
+    return {
+        name: serverName,
+        last_seen: null,
+        is_stale: true,
+        gpus: [],
+        warnings: ["Waiting for first GPU data"],
+    };
+}
+
+function renderSingleServer(server) {
+    serverSnapshots.set(server.name, server);
+    let card = serverCards.get(server.name);
+    if (!card) {
+        card = document.createElement("div");
+        serverCards.set(server.name, card);
+        serverGrid.appendChild(card);
+    }
+    renderServerCard(card, server);
+}
+
+function setServerRefreshing(serverName, isRefreshing) {
+    if (isRefreshing) {
+        refreshingServers.add(serverName);
+    } else {
+        refreshingServers.delete(serverName);
+    }
+    const card = serverCards.get(serverName);
+    const snapshot = serverSnapshots.get(serverName);
+    if (card && snapshot) {
+        renderServerCard(card, snapshot);
+    }
 }
 
 function syncServerCards(orderedCards) {
@@ -142,9 +212,12 @@ function renderServerCard(card, server) {
     const hasWarning = Boolean(server.warnings && server.warnings.length);
     const hasNoGpuData = !server.gpus.length;
     const isCompact = hasWarning && hasNoGpuData;
+    const isRefreshing = refreshingServers.has(server.name);
     const lastSeen = formatLastSeen(server.last_seen);
-    const snapshotAge = server.is_stale ? `Stale · ${lastSeen}` : `Updated ${lastSeen}`;
-    card.className = `server-card${server.is_stale ? " stale" : ""}${isCompact ? " compact" : ""}`;
+    const snapshotAge = isRefreshing
+        ? "Refreshing..."
+        : server.is_stale ? `Stale · ${lastSeen}` : `Updated ${lastSeen}`;
+    card.className = `server-card${server.is_stale ? " stale" : ""}${isCompact ? " compact" : ""}${isRefreshing ? " refreshing" : ""}`;
     card.innerHTML = "";
 
     const header = document.createElement("div");
@@ -224,15 +297,38 @@ function renderServerCard(card, server) {
 }
 
 function renderStatus(message, variant = "") {
-    serverGrid.innerHTML = `<p class="empty ${variant}">${escapeHtml(message)}</p>`;
+    const className = `empty${variant ? ` ${variant}` : ""}`;
+    serverGrid.innerHTML = `<p class="${className}">${escapeHtml(message)}</p>`;
+}
+
+function renderRefreshStatus(message, variant = "") {
+    if (!refreshStatus) {
+        return;
+    }
+    refreshStatus.textContent = message;
+    refreshStatus.className = `refresh-status${variant ? ` ${variant}` : ""}`;
+}
+
+function hasExistingContent() {
+    return Boolean(serverGrid.innerHTML || (serverGrid.children && serverGrid.children.length));
+}
+
+async function handleManualRefresh() {
+    if (!refreshButton) {
+        return;
+    }
+    await loadAll({ force: true });
 }
 
 async function start() {
     renderStatus("Loading...");
     try {
         const pollInterval = await loadConfig();
-        await loadAll(true);
-        setInterval(loadAll, pollInterval);
+        if (refreshButton) {
+            refreshButton.addEventListener("click", handleManualRefresh);
+        }
+        loadAll({ showLoading: true });
+        setInterval(() => loadAll(), pollInterval);
     } catch (error) {
         console.error(error);
         renderStatus(`Error: ${error.message}`, "error");

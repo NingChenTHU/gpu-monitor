@@ -8,7 +8,10 @@ from io import StringIO
 from gpu_monitor.config import ServerConfig
 from gpu_monitor.ssh_client import SSHMonitorClient
 
-_DEFAULT_PROBE_TIMEOUT_SECONDS = 5.0
+_MIN_PROBE_TIMEOUT_SECONDS = 1.0
+_DEFAULT_PROBE_TIMEOUT_FLOOR_SECONDS = 5.0
+_DEFAULT_PROBE_TIMEOUT_CEILING_SECONDS = 30.0
+_PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS = 1.0
 
 _GPU_SNAPSHOT_PROBE = (
     "apps=$(nvidia-smi --query-compute-apps=pid,gpu_uuid,used_gpu_memory "
@@ -56,7 +59,7 @@ class ServerSnapshot:
 
 
 class GPUMonitor:
-    """Periodically polls GPU metrics on each server via SSH."""
+    """Refreshes GPU metrics on each server via SSH."""
 
     def __init__(
         self,
@@ -66,6 +69,7 @@ class GPUMonitor:
         poll_interval_seconds: int = 20,
     ) -> None:
         self._servers = list(servers)
+        self._servers_by_host = {server.host: server for server in self._servers}
         self._ssh_client = ssh_client
         self._poll_interval_seconds = poll_interval_seconds
         self._snapshots: dict[str, ServerSnapshot] = {
@@ -77,39 +81,69 @@ class GPUMonitor:
             for server in self._servers
         }
         self._lock = asyncio.Lock()
-        self._tasks: dict[str, asyncio.Task[None]] = {}
-        self._stop_event = asyncio.Event()
+        self._in_flight: dict[str, asyncio.Task[None]] = {}
+        self._last_refresh_completed_at: dict[str, float] = {}
 
-    async def start(self) -> None:
-        if self._tasks:
-            return
-        self._stop_event.clear()
-        for server in self._servers:
-            task = asyncio.create_task(
-                self._poll_loop(server), name=f"gpu-poller:{server.host}"
+    async def refresh_all_snapshots(self, *, force: bool = False) -> list[ServerSnapshot]:
+        async with self._lock:
+            if not force and all(
+                self._snapshot_is_fresh(server.host) for server in self._servers
+            ):
+                return [self._snapshots[server.host] for server in self._servers]
+
+        await asyncio.gather(
+            *(self.refresh_snapshot(server.host, force=force) for server in self._servers)
+        )
+
+        async with self._lock:
+            return [self._snapshots[server.host] for server in self._servers]
+
+    async def refresh_snapshot(
+        self, server_name: str, *, force: bool = False
+    ) -> ServerSnapshot:
+        try:
+            server = self._servers_by_host[server_name]
+        except KeyError:
+            raise KeyError(server_name) from None
+
+        async with self._lock:
+            if not force and self._snapshot_is_fresh(server.host):
+                return self._snapshots[server.host]
+
+        await self._refresh_server(server)
+
+        async with self._lock:
+            self._last_refresh_completed_at[server.host] = (
+                asyncio.get_running_loop().time()
             )
-            self._tasks[server.host] = task
-
-    async def stop(self) -> None:
-        self._stop_event.set()
-        for task in self._tasks.values():
-            task.cancel()
-        await asyncio.gather(*self._tasks.values(), return_exceptions=True)
-        self._tasks.clear()
+            return self._snapshots[server.host]
 
     async def get_all_snapshots(self) -> list[ServerSnapshot]:
         async with self._lock:
             return [self._snapshots[server.host] for server in self._servers]
 
-    async def _poll_loop(self, server: ServerConfig) -> None:
-        while not self._stop_event.is_set():
-            await self._poll_once(server)
-            try:
-                await asyncio.wait_for(
-                    self._stop_event.wait(), timeout=self._poll_interval_seconds
+    def _snapshot_is_fresh(self, server_name: str) -> bool:
+        completed_at = self._last_refresh_completed_at.get(server_name)
+        if completed_at is None:
+            return False
+        age = asyncio.get_running_loop().time() - completed_at
+        return age < self._poll_interval_seconds
+
+    async def _refresh_server(self, server: ServerConfig) -> None:
+        async with self._lock:
+            task = self._in_flight.get(server.host)
+            if task is None:
+                task = asyncio.create_task(
+                    self._poll_once(server), name=f"gpu-refresh:{server.host}"
                 )
-            except TimeoutError:
-                continue
+                self._in_flight[server.host] = task
+
+        try:
+            await task
+        finally:
+            async with self._lock:
+                if self._in_flight.get(server.host) is task and task.done():
+                    del self._in_flight[server.host]
 
     async def _poll_once(self, server: ServerConfig) -> None:
         try:
@@ -138,7 +172,12 @@ class GPUMonitor:
         raw = await self._ssh_client.run_probe(
             server,
             _GPU_SNAPSHOT_PROBE,
-            timeout=_probe_timeout_seconds(server),
+            timeout=_probe_timeout_seconds(
+                server,
+                default_timeout=_default_probe_timeout_seconds(
+                    self._poll_interval_seconds
+                ),
+            ),
         )
         sections = _parse_snapshot_sections(raw)
         gpu_rows = _parse_csv_lines("\n".join(sections.get("GPU", [])))
@@ -179,14 +218,25 @@ def _parse_snapshot_sections(raw: str) -> dict[str, list[str]]:
     return sections
 
 
-def _probe_timeout_seconds(server: ServerConfig) -> float:
-    timeout = server.ssh_options.get("ConnectTimeout", _DEFAULT_PROBE_TIMEOUT_SECONDS)
+def _default_probe_timeout_seconds(poll_interval_seconds: int) -> float:
+    interval_timeout = max(
+        _MIN_PROBE_TIMEOUT_SECONDS,
+        float(poll_interval_seconds) - _PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS,
+    )
+    return min(
+        _DEFAULT_PROBE_TIMEOUT_CEILING_SECONDS,
+        max(_DEFAULT_PROBE_TIMEOUT_FLOOR_SECONDS, interval_timeout),
+    )
+
+
+def _probe_timeout_seconds(server: ServerConfig, *, default_timeout: float) -> float:
+    timeout = server.ssh_options.get("ConnectTimeout", default_timeout)
     try:
         parsed_timeout = float(timeout)
     except (TypeError, ValueError):
-        return _DEFAULT_PROBE_TIMEOUT_SECONDS
+        return default_timeout
     if parsed_timeout <= 0:
-        return _DEFAULT_PROBE_TIMEOUT_SECONDS
+        return default_timeout
     return parsed_timeout
 
 

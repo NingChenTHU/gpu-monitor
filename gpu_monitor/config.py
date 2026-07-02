@@ -41,7 +41,7 @@ def load_config(path: Path | str) -> tuple[list[ServerConfig], int]:
         poll_interval_seconds = int(data["poll_interval_seconds"])
     except (TypeError, ValueError) as exc:
         raise ValueError("poll_interval_seconds must be an integer") from exc
-    if poll_interval_seconds < 5:
-        raise ValueError("poll_interval_seconds must be at least 5")
+    if poll_interval_seconds <= 0:
+        raise ValueError("poll_interval_seconds must be positive")
 
     return servers, poll_interval_seconds

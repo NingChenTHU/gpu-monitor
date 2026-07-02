@@ -11,7 +11,13 @@
 <body>
     <div id="app">
         <main>
-            <h1>GPU Monitor</h1>
+            <header class="app-header">
+                <h1>GPU Monitor</h1>
+                <div class="header-actions">
+                    <span id="refresh-status" class="refresh-status" aria-live="polite"></span>
+                    <button id="refresh-button" type="button">Refresh</button>
+                </div>
+            </header>
             <section id="servers">
                 <div id="server-grid" class="cards"></div>
             </section>
