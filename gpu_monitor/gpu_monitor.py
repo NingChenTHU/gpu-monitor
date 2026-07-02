@@ -68,8 +68,8 @@ class GPUMonitor:
         *,
         poll_interval_seconds: int = 20,
     ) -> None:
-        self._servers = list(servers)
-        self._servers_by_host = {server.host: server for server in self._servers}
+        server_list = list(servers)
+        self._servers_by_host = {server.host: server for server in server_list}
         self._ssh_client = ssh_client
         self._poll_interval_seconds = poll_interval_seconds
         self._snapshots: dict[str, ServerSnapshot] = {
@@ -78,25 +78,11 @@ class GPUMonitor:
                 is_stale=True,
                 warnings=["Waiting for first GPU data"],
             )
-            for server in self._servers
+            for server in server_list
         }
         self._lock = asyncio.Lock()
         self._in_flight: dict[str, asyncio.Task[None]] = {}
         self._last_refresh_completed_at: dict[str, float] = {}
-
-    async def refresh_all_snapshots(self, *, force: bool = False) -> list[ServerSnapshot]:
-        async with self._lock:
-            if not force and all(
-                self._snapshot_is_fresh(server.host) for server in self._servers
-            ):
-                return [self._snapshots[server.host] for server in self._servers]
-
-        await asyncio.gather(
-            *(self.refresh_snapshot(server.host, force=force) for server in self._servers)
-        )
-
-        async with self._lock:
-            return [self._snapshots[server.host] for server in self._servers]
 
     async def refresh_snapshot(
         self, server_name: str, *, force: bool = False
@@ -117,10 +103,6 @@ class GPUMonitor:
                 asyncio.get_running_loop().time()
             )
             return self._snapshots[server.host]
-
-    async def get_all_snapshots(self) -> list[ServerSnapshot]:
-        async with self._lock:
-            return [self._snapshots[server.host] for server in self._servers]
 
     def _snapshot_is_fresh(self, server_name: str) -> bool:
         completed_at = self._last_refresh_completed_at.get(server_name)

@@ -15,32 +15,18 @@ SERVER = ServerConfig(host="gpu-a")
 
 
 class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
-    async def test_initial_snapshots_include_all_configured_servers_in_order(self) -> None:
-        servers = [
-            ServerConfig(host="gpu-b"),
-            ServerConfig(host="gpu-a"),
-        ]
-        monitor = GPUMonitor(servers, FakeSSHClient())
-
-        snapshots = await monitor.get_all_snapshots()
-
-        self.assertEqual([snapshot.name for snapshot in snapshots], ["gpu-b", "gpu-a"])
-        self.assertEqual([snapshot.gpus for snapshot in snapshots], [[], []])
-        self.assertEqual([snapshot.last_seen for snapshot in snapshots], [None, None])
-
     async def test_failed_poll_preserves_previous_snapshot_as_stale(self) -> None:
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client)
-        await monitor.refresh_all_snapshots(force=True)
+        await monitor.refresh_snapshot(SERVER.host, force=True)
 
         client.fail = True
-        await monitor.refresh_all_snapshots(force=True)
+        snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        snapshots = await monitor.get_all_snapshots()
-        self.assertTrue(snapshots[0].is_stale)
-        self.assertEqual(snapshots[0].gpus[0].uuid, "GPU-a")
+        self.assertTrue(snapshot.is_stale)
+        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
         self.assertEqual(
-            snapshots[0].warnings,
+            snapshot.warnings,
             ["Polling failed; showing last known GPU data"],
         )
 
@@ -48,10 +34,9 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client)
 
-        await monitor.refresh_all_snapshots(force=True)
-        snapshots = await monitor.get_all_snapshots()
+        snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        gpu = snapshots[0].gpus[0]
+        gpu = snapshot.gpus[0]
         self.assertEqual(gpu.uuid, "GPU-a")
         self.assertEqual(gpu.processes[0].user, "alice")
         self.assertEqual(gpu.processes[0].memory_mb, 512)
@@ -64,7 +49,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         client = FakeSSHClient()
         monitor = GPUMonitor([server], client)
 
-        await monitor.refresh_all_snapshots(force=True)
+        await monitor.refresh_snapshot(server.host, force=True)
 
         self.assertEqual(client.timeouts, [12.0])
 
@@ -72,7 +57,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client, poll_interval_seconds=20)
 
-        await monitor.refresh_all_snapshots(force=True)
+        await monitor.refresh_snapshot(SERVER.host, force=True)
 
         self.assertEqual(client.timeouts, [19.0])
 
@@ -80,7 +65,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client, poll_interval_seconds=300)
 
-        await monitor.refresh_all_snapshots(force=True)
+        await monitor.refresh_snapshot(SERVER.host, force=True)
 
         self.assertEqual(client.timeouts, [30.0])
 
@@ -92,11 +77,10 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         )
         monitor = GPUMonitor([SERVER], client)
 
-        await monitor.refresh_all_snapshots(force=True)
-        snapshots = await monitor.get_all_snapshots()
+        snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        self.assertEqual(snapshots[0].gpus[0].uuid, "GPU-a")
-        self.assertEqual(snapshots[0].gpus[0].processes, [])
+        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
+        self.assertEqual(snapshot.gpus[0].processes, [])
 
     async def test_snapshot_collection_skips_malformed_rows(self) -> None:
         client = FakeSSHClient(
@@ -113,19 +97,18 @@ bad
         )
         monitor = GPUMonitor([SERVER], client)
 
-        await monitor.refresh_all_snapshots(force=True)
-        snapshots = await monitor.get_all_snapshots()
+        snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        self.assertEqual(len(snapshots[0].gpus), 1)
-        self.assertEqual(snapshots[0].gpus[0].uuid, "GPU-a")
-        self.assertEqual(snapshots[0].gpus[0].processes[0].user, "alice")
+        self.assertEqual(len(snapshot.gpus), 1)
+        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
+        self.assertEqual(snapshot.gpus[0].processes[0].user, "alice")
 
     async def test_non_force_refresh_uses_cache_inside_poll_interval(self) -> None:
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client, poll_interval_seconds=20)
 
-        await monitor.refresh_all_snapshots()
-        await monitor.refresh_all_snapshots()
+        await monitor.refresh_snapshot(SERVER.host)
+        await monitor.refresh_snapshot(SERVER.host)
 
         self.assertEqual(len(client.probes), 1)
 
@@ -133,8 +116,8 @@ bad
         client = FakeSSHClient()
         monitor = GPUMonitor([SERVER], client, poll_interval_seconds=20)
 
-        await monitor.refresh_all_snapshots()
-        await monitor.refresh_all_snapshots(force=True)
+        await monitor.refresh_snapshot(SERVER.host)
+        await monitor.refresh_snapshot(SERVER.host, force=True)
 
         self.assertEqual(len(client.probes), 2)
 
@@ -170,8 +153,8 @@ bad
         monitor = GPUMonitor([SERVER], client)
 
         await asyncio.gather(
-            monitor.refresh_all_snapshots(force=True),
-            monitor.refresh_all_snapshots(force=True),
+            monitor.refresh_snapshot(SERVER.host, force=True),
+            monitor.refresh_snapshot(SERVER.host, force=True),
         )
 
         self.assertEqual(len(client.probes), 1)

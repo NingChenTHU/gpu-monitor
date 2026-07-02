@@ -34,12 +34,6 @@ def create_app(config_path: Path | str) -> FastAPI:
     app = FastAPI(title="GPU Monitor", version="0.2.3", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    @app.post("/api/servers/refresh", response_model=list[ServerSnapshot])
-    async def refresh_servers(
-        request: Request, force: bool = False
-    ) -> list[ServerSnapshot]:
-        return await request.app.state.gpu_monitor.refresh_all_snapshots(force=force)
-
     @app.post("/api/servers/{server_name}/refresh", response_model=ServerSnapshot)
     async def refresh_server(
         request: Request, server_name: str, force: bool = False
