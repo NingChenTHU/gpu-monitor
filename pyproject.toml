@@ -1,6 +1,6 @@
 [project]
 name = "gpu-server-monitor"
-version = "0.2.2"
+version = "0.2.3"
 description = "GPU cluster monitoring service"
 readme = "README.md"
 authors = [
