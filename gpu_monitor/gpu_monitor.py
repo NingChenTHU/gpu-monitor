@@ -8,9 +8,8 @@ from io import StringIO
 from gpu_monitor.config import ServerConfig
 from gpu_monitor.ssh_client import SSHMonitorClient
 
-_MIN_PROBE_TIMEOUT_SECONDS = 1.0
-_DEFAULT_PROBE_TIMEOUT_FLOOR_SECONDS = 5.0
-_DEFAULT_PROBE_TIMEOUT_CEILING_SECONDS = 30.0
+_DEFAULT_PROBE_TIMEOUT_SECONDS = 5.0
+_MAX_PROBE_TIMEOUT_SECONDS = 30.0
 _PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS = 1.0
 
 _GPU_SNAPSHOT_PROBE = (
@@ -68,18 +67,34 @@ class GPUMonitor:
         *,
         poll_interval_seconds: int = 20,
     ) -> None:
-        server_list = list(servers)
-        self._servers_by_host = {server.host: server for server in server_list}
         self._ssh_client = ssh_client
         self._poll_interval_seconds = poll_interval_seconds
-        self._snapshots: dict[str, ServerSnapshot] = {
-            server.host: ServerSnapshot(
+        self._servers_by_host: dict[str, ServerConfig] = {}
+        self._probe_timeout_by_host: dict[str, float] = {}
+        self._snapshots: dict[str, ServerSnapshot] = {}
+        default_probe_timeout = min(
+            _MAX_PROBE_TIMEOUT_SECONDS,
+            max(
+                _DEFAULT_PROBE_TIMEOUT_SECONDS,
+                float(poll_interval_seconds) - _PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS,
+            ),
+        )
+        for server in servers:
+            probe_timeout = server.ssh_options.get("ConnectTimeout", default_probe_timeout)
+            try:
+                probe_timeout = float(probe_timeout)
+            except (TypeError, ValueError):
+                probe_timeout = default_probe_timeout
+            if probe_timeout <= 0:
+                probe_timeout = default_probe_timeout
+
+            self._servers_by_host[server.host] = server
+            self._probe_timeout_by_host[server.host] = probe_timeout
+            self._snapshots[server.host] = ServerSnapshot(
                 name=server.host,
                 is_stale=True,
                 warnings=["Waiting for first GPU data"],
             )
-            for server in server_list
-        }
         self._lock = asyncio.Lock()
         self._in_flight: dict[str, asyncio.Task[None]] = {}
         self._last_refresh_completed_at: dict[str, float] = {}
@@ -130,7 +145,7 @@ class GPUMonitor:
     async def _poll_once(self, server: ServerConfig) -> None:
         try:
             snapshot = await self._collect_snapshot(server)
-        except Exception:  # broad catch to keep polling alive
+        except Exception:
             async with self._lock:
                 previous = self._snapshots.get(server.host)
             if previous and previous.gpus:
@@ -154,12 +169,7 @@ class GPUMonitor:
         raw = await self._ssh_client.run_probe(
             server,
             _GPU_SNAPSHOT_PROBE,
-            timeout=_probe_timeout_seconds(
-                server,
-                default_timeout=_default_probe_timeout_seconds(
-                    self._poll_interval_seconds
-                ),
-            ),
+            timeout=self._probe_timeout_by_host[server.host],
         )
         sections = _parse_snapshot_sections(raw)
         gpu_rows = _parse_csv_lines("\n".join(sections.get("GPU", [])))
@@ -198,28 +208,6 @@ def _parse_snapshot_sections(raw: str) -> dict[str, list[str]]:
         if current is not None and line.strip():
             sections[current].append(line)
     return sections
-
-
-def _default_probe_timeout_seconds(poll_interval_seconds: int) -> float:
-    interval_timeout = max(
-        _MIN_PROBE_TIMEOUT_SECONDS,
-        float(poll_interval_seconds) - _PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS,
-    )
-    return min(
-        _DEFAULT_PROBE_TIMEOUT_CEILING_SECONDS,
-        max(_DEFAULT_PROBE_TIMEOUT_FLOOR_SECONDS, interval_timeout),
-    )
-
-
-def _probe_timeout_seconds(server: ServerConfig, *, default_timeout: float) -> float:
-    timeout = server.ssh_options.get("ConnectTimeout", default_timeout)
-    try:
-        parsed_timeout = float(timeout)
-    except (TypeError, ValueError):
-        return default_timeout
-    if parsed_timeout <= 0:
-        return default_timeout
-    return parsed_timeout
 
 
 def _map_process_rows(

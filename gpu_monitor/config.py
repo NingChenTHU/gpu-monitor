@@ -11,8 +11,8 @@ class ServerConfig:
     ssh_options: dict[str, Any] = field(default_factory=dict)
 
 
-def load_config(path: Path | str) -> tuple[list[ServerConfig], int]:
-    config_path = Path(path).expanduser()
+def load_config(path: Path) -> tuple[list[ServerConfig], int]:
+    config_path = path.expanduser()
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 

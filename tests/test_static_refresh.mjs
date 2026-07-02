@@ -72,9 +72,68 @@ function waitFor(condition) {
     });
 }
 
+test("initial load does not render a loading row", async () => {
+    const serverGrid = new FakeElement();
+    const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
+
+    globalThis.document = {
+        querySelector(selector) {
+            if (selector === "#server-grid") {
+                return serverGrid;
+            }
+            if (selector === "#refresh-button") {
+                return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
+            }
+            return null;
+        },
+    };
+    globalThis.fetch = async () => new Promise(() => {});
+
+    const appUrl = pathToFileURL("gpu_monitor/static/app.js");
+    appUrl.search = `?t=${Date.now()}-no-loading`;
+    await import(appUrl.href);
+
+    assert.equal(serverGrid.innerHTML, "");
+});
+
+test("config load errors render in refresh status", async () => {
+    const serverGrid = new FakeElement();
+    const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
+
+    globalThis.document = {
+        querySelector(selector) {
+            if (selector === "#server-grid") {
+                return serverGrid;
+            }
+            if (selector === "#refresh-button") {
+                return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
+            }
+            return null;
+        },
+    };
+    globalThis.fetch = async () => ({ ok: false, status: 500 });
+
+    const appUrl = pathToFileURL("gpu_monitor/static/app.js");
+    appUrl.search = `?t=${Date.now()}-config-error`;
+    await import(appUrl.href);
+    await waitFor(() => refreshStatus.textContent.includes("/api/config"));
+
+    assert.equal(serverGrid.innerHTML, "");
+    assert.equal(refreshStatus.className, "refresh-status error");
+});
+
 test("scheduled refresh keeps existing content while fetching new data", async () => {
     const serverGrid = { innerHTML: "" };
     const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
     let scheduledRefresh;
 
     globalThis.document = {
@@ -84,6 +143,9 @@ test("scheduled refresh keeps existing content while fetching new data", async (
             }
             if (selector === "#refresh-button") {
                 return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
             }
             return null;
         },
@@ -119,6 +181,7 @@ test("scheduled refresh keeps existing content while fetching new data", async (
 test("refresh reuses existing server cards for stable server names", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
     let scheduledRefresh;
     let serverRequests = 0;
 
@@ -146,6 +209,9 @@ test("refresh reuses existing server cards for stable server names", async () =>
             }
             if (selector === "#refresh-button") {
                 return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
             }
             return null;
         },
@@ -191,6 +257,8 @@ test("refresh reuses existing server cards for stable server names", async () =>
     await import(appUrl.href);
     await waitFor(() => typeof scheduledRefresh === "function");
 
+    assert.equal(serverGrid.innerHTML, "");
+
     const firstCards = [...serverGrid.children];
     serverGrid.clearWrites = 0;
 
@@ -204,6 +272,7 @@ test("refresh reuses existing server cards for stable server names", async () =>
 test("per-server refresh renders fast servers before slow servers finish", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
     let scheduledRefresh;
     let resolveSlowRefresh;
 
@@ -231,6 +300,9 @@ test("per-server refresh renders fast servers before slow servers finish", async
             }
             if (selector === "#refresh-button") {
                 return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
             }
             return null;
         },
@@ -295,6 +367,7 @@ test("per-server refresh renders fast servers before slow servers finish", async
 test("manual refresh leaves button enabled and skips servers already refreshing", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
     let forceRefreshRequests = 0;
     let resolveForceRefresh;
 
@@ -305,6 +378,9 @@ test("manual refresh leaves button enabled and skips servers already refreshing"
             }
             if (selector === "#refresh-button") {
                 return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
             }
             return null;
         },

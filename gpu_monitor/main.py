@@ -13,12 +13,14 @@ from gpu_monitor.ssh_client import SSHMonitorClient
 STATIC_DIR = files("gpu_monitor") / "static"
 
 
-def create_app(config_path: Path | str) -> FastAPI:
+def create_app(config_path: Path) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         servers, poll_interval_seconds = load_config(config_path)
-        app.state.poll_interval_seconds = poll_interval_seconds
-        app.state.server_names = [server.host for server in servers]
+        app.state.config = {
+            "poll_interval_seconds": poll_interval_seconds,
+            "servers": [server.host for server in servers],
+        }
         ssh_client = SSHMonitorClient(servers)
         gpu_monitor = GPUMonitor(
             servers,
@@ -47,10 +49,7 @@ def create_app(config_path: Path | str) -> FastAPI:
 
     @app.get("/api/config")
     async def get_config(request: Request) -> dict[str, int | list[str]]:
-        return {
-            "poll_interval_seconds": request.app.state.poll_interval_seconds,
-            "servers": request.app.state.server_names,
-        }
+        return request.app.state.config
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:

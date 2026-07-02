@@ -51,8 +51,10 @@ class ApiTests(unittest.TestCase):
 
     def test_config_api_returns_poll_interval_seconds(self) -> None:
         app = create_test_app()
-        app.state.poll_interval_seconds = 25
-        app.state.server_names = ["gpu-a", "gpu-b"]
+        app.state.config = {
+            "poll_interval_seconds": 25,
+            "servers": ["gpu-a", "gpu-b"],
+        }
         client = TestClient(app)
 
         response = client.get("/api/config")

@@ -1,6 +1,6 @@
-const serverGrid = typeof document === "undefined" ? null : document.querySelector("#server-grid");
-const refreshButton = typeof document === "undefined" ? null : document.querySelector("#refresh-button");
-const refreshStatus = typeof document === "undefined" ? null : document.querySelector("#refresh-status");
+const serverGrid = document.querySelector("#server-grid");
+const refreshButton = document.querySelector("#refresh-button");
+const refreshStatus = document.querySelector("#refresh-status");
 const serverCards = new Map();
 const serverSnapshots = new Map();
 const refreshingServers = new Set();
@@ -52,7 +52,7 @@ function formatMemoryGb(memoryMb) {
     return Math.max(0, Math.round(value / 1024));
 }
 
-export function formatGpuName(name) {
+function formatGpuName(name) {
     const normalized = String(name || "").toUpperCase();
     const match = normalized.match(/(A\d{3,4}|\d{4})/);
     if (!match) {
@@ -61,7 +61,7 @@ export function formatGpuName(name) {
     return match[1];
 }
 
-export function renderPrimaryProcess(processes) {
+function renderPrimaryProcess(processes) {
     if (!processes || !processes.length) {
         return "";
     }
@@ -73,29 +73,21 @@ export function renderPrimaryProcess(processes) {
     return `<span>${escapeHtml(primary.user)} · ${procGb} GB</span>${more}`;
 }
 
-async function loadAll({ showLoading = false, force = false } = {}) {
-    if (showLoading) {
-        renderStatus("Loading...");
-    }
+async function loadAll(force = false) {
     try {
         renderRefreshStatus("");
         renderPlaceholders();
-        await refreshServers({ force });
+        await refreshServers(force);
     } catch (error) {
-        console.error(error);
-        if (hasExistingContent()) {
-            renderRefreshStatus(`Error: ${error.message}`, "error");
-        } else {
-            renderStatus(`Error: ${error.message}`, "error");
-        }
+        renderRefreshStatus(`Error: ${error.message}`, "error");
     }
 }
 
-async function refreshServers({ force = false } = {}) {
-    await Promise.all(serverNames.map((serverName) => refreshServer(serverName, { force })));
+async function refreshServers(force) {
+    await Promise.all(serverNames.map((serverName) => refreshServer(serverName, force)));
 }
 
-async function refreshServer(serverName, { force = false } = {}) {
+async function refreshServer(serverName, force) {
     if (refreshingServers.has(serverName)) {
         return;
     }
@@ -109,7 +101,6 @@ async function refreshServer(serverName, { force = false } = {}) {
         }
         renderSingleServer(await response.json());
     } catch (error) {
-        console.error(error);
         renderRefreshStatus(`Error: ${error.message}`, "error");
     } finally {
         setServerRefreshing(serverName, false);
@@ -122,46 +113,28 @@ async function loadConfig() {
         throw new Error(`/api/config responded with ${response.status}`);
     }
     const config = await response.json();
-    const pollIntervalSeconds = Number(config.poll_interval_seconds);
-    if (!Number.isFinite(pollIntervalSeconds) || pollIntervalSeconds <= 0) {
-        throw new Error("Invalid poll interval");
-    }
-    if (!Array.isArray(config.servers)) {
-        throw new Error("Invalid server list");
-    }
     serverNames = config.servers.map((serverName) => String(serverName));
-    return pollIntervalSeconds * 1000;
+    return Number(config.poll_interval_seconds) * 1000;
 }
 
 function renderPlaceholders() {
     if (!serverNames.length) {
         serverCards.clear();
+        serverSnapshots.clear();
         serverGrid.innerHTML = '<p class="empty">No servers configured yet.</p>';
         return;
     }
-    const seenServers = new Set();
-    const orderedCards = [];
-
     serverNames.forEach((serverKey) => {
-        let card = serverCards.get(serverKey);
-        if (!card) {
-            card = document.createElement("div");
-            serverCards.set(serverKey, card);
-            serverSnapshots.set(serverKey, placeholderSnapshot(serverKey));
-            renderServerCard(card, serverSnapshots.get(serverKey));
+        if (serverCards.has(serverKey)) {
+            return;
         }
-        seenServers.add(serverKey);
-        orderedCards.push(card);
+        const card = document.createElement("div");
+        const snapshot = placeholderSnapshot(serverKey);
+        serverCards.set(serverKey, card);
+        serverSnapshots.set(serverKey, snapshot);
+        renderServerCard(card, snapshot);
+        serverGrid.appendChild(card);
     });
-
-    for (const serverKey of serverCards.keys()) {
-        if (!seenServers.has(serverKey)) {
-            serverCards.delete(serverKey);
-            serverSnapshots.delete(serverKey);
-        }
-    }
-
-    syncServerCards(orderedCards);
 }
 
 function placeholderSnapshot(serverName) {
@@ -176,12 +149,7 @@ function placeholderSnapshot(serverName) {
 
 function renderSingleServer(server) {
     serverSnapshots.set(server.name, server);
-    let card = serverCards.get(server.name);
-    if (!card) {
-        card = document.createElement("div");
-        serverCards.set(server.name, card);
-        serverGrid.appendChild(card);
-    }
+    const card = serverCards.get(server.name);
     renderServerCard(card, server);
 }
 
@@ -195,16 +163,6 @@ function setServerRefreshing(serverName, isRefreshing) {
     const snapshot = serverSnapshots.get(serverName);
     if (card && snapshot) {
         renderServerCard(card, snapshot);
-    }
-}
-
-function syncServerCards(orderedCards) {
-    const currentCards = Array.from(serverGrid.children);
-    const isSameOrder =
-        currentCards.length === orderedCards.length &&
-        currentCards.every((card, index) => card === orderedCards[index]);
-    if (!isSameOrder) {
-        serverGrid.replaceChildren(...orderedCards);
     }
 }
 
@@ -296,47 +254,23 @@ function renderServerCard(card, server) {
     }
 }
 
-function renderStatus(message, variant = "") {
-    const className = `empty${variant ? ` ${variant}` : ""}`;
-    serverGrid.innerHTML = `<p class="${className}">${escapeHtml(message)}</p>`;
-}
-
 function renderRefreshStatus(message, variant = "") {
-    if (!refreshStatus) {
-        return;
-    }
     refreshStatus.textContent = message;
     refreshStatus.className = `refresh-status${variant ? ` ${variant}` : ""}`;
 }
 
-function hasExistingContent() {
-    return Boolean(serverGrid.innerHTML || (serverGrid.children && serverGrid.children.length));
-}
-
-async function handleManualRefresh() {
-    if (!refreshButton) {
-        return;
-    }
-    await loadAll({ force: true });
-}
-
 async function start() {
-    renderStatus("Loading...");
     try {
         const pollInterval = await loadConfig();
-        if (refreshButton) {
-            refreshButton.addEventListener("click", handleManualRefresh);
-        }
-        loadAll({ showLoading: true });
+        refreshButton.addEventListener("click", () => loadAll(true));
+        loadAll();
         setInterval(() => loadAll(), pollInterval);
     } catch (error) {
-        console.error(error);
-        renderStatus(`Error: ${error.message}`, "error");
+        renderRefreshStatus(`Error: ${error.message}`, "error");
     }
 }
 
-if (serverGrid) {
-    start();
-}
+start();
 
-
+// Keep Node imports treating this browser script as an ES module.
+export {};
