@@ -55,7 +55,7 @@ class SSHMonitorClient:
         )
         try:
             stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except TimeoutError:
+        except (TimeoutError, asyncio.CancelledError):
             process.kill()
             await process.wait()
             raise
