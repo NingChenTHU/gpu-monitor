@@ -52,8 +52,23 @@ function formatMemoryGb(memoryMb) {
     return Math.max(0, Math.round(value / 1024));
 }
 
-function formatGpuName(name) {
-    return String(name || "GPU").replace(/^NVIDIA\s+/i, "");
+function formatDeviceType(deviceType) {
+    return String(deviceType || "gpu").toLowerCase() === "npu" ? "NPU" : "GPU";
+}
+
+function detectServerDeviceType(server) {
+    if (server.device_type) {
+        return formatDeviceType(server.device_type);
+    }
+    const firstGpu = server.gpus && server.gpus[0];
+    if (!firstGpu) {
+        return "";
+    }
+    return formatDeviceType(firstGpu.device_type);
+}
+
+function formatGpuName(name, deviceType = "gpu") {
+    return String(name || formatDeviceType(deviceType)).replace(/^NVIDIA\s+/i, "");
 }
 
 function renderPrimaryProcess(processes) {
@@ -166,6 +181,7 @@ function renderServerCard(card, server) {
     const hasNoGpuData = !server.gpus.length;
     const isCompact = hasWarning && hasNoGpuData;
     const isRefreshing = refreshingServers.has(server.name);
+    const serverDeviceType = detectServerDeviceType(server);
     const lastSeen = formatLastSeen(server.last_seen);
     const snapshotAge = isRefreshing
         ? "Refreshing..."
@@ -179,6 +195,7 @@ function renderServerCard(card, server) {
         <div class="server-title">
             <div class="server-identity">
                 <h3>${escapeHtml(server.name)}</h3>
+                ${serverDeviceType ? `<span class="device-pill">${serverDeviceType}</span>` : ""}
             </div>
             <span class="header-meta">${snapshotAge}</span>
         </div>
@@ -209,9 +226,10 @@ function renderServerCard(card, server) {
 
             const gpuHeader = document.createElement("div");
             gpuHeader.className = "gpu-header";
-            const gpuName = formatGpuName(gpu.name);
+            const deviceType = formatDeviceType(gpu.device_type);
+            const gpuName = formatGpuName(gpu.name, gpu.device_type);
             gpuHeader.innerHTML = `
-                <span class="gpu-name" title="${escapeHtml(gpuName)}">#${gpu.index} ${escapeHtml(gpuName)}</span>
+                <span class="gpu-name" title="${escapeHtml(gpuName)}">${deviceType} #${gpu.index} ${escapeHtml(gpuName)}</span>
             `;
             gpuDiv.appendChild(gpuHeader);
 

@@ -11,6 +11,11 @@ poll_interval_seconds = 20
 # [[servers]]
 # Host = "server-a"
 
+# NPU server: set DeviceType to npu.
+# [[servers]]
+# Host = "npu-server-a"
+# DeviceType = "npu"
+
 # Full form: write connection details directly in this file.
 # Uncomment and edit this block if you do not use an SSH config entry.
 # [[servers]]

@@ -66,6 +66,8 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("\n[[servers]]", contents)
         self.assertIn("# [[servers]]", contents)
         self.assertIn('# Host = "server-a"', contents)
+        self.assertIn('# Host = "npu-server-a"', contents)
+        self.assertIn('# DeviceType = "npu"', contents)
 
 
 if __name__ == "__main__":
