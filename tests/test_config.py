@@ -23,6 +23,7 @@ class ConfigPathTests(unittest.TestCase):
 
         self.assertEqual(poll_interval_seconds, 20)
         self.assertEqual([server.host for server in servers], ["server-a"])
+        self.assertEqual(servers[0].device_type, "gpu")
 
     def test_load_config_preserves_ssh_options(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -37,6 +38,7 @@ class ConfigPathTests(unittest.TestCase):
 
                     [[servers]]
                     Host = 44
+                    DeviceType = "npu"
                     HostName = "10.0.0.44"
                     User = "scientist"
                     Port = 6044
@@ -53,8 +55,10 @@ class ConfigPathTests(unittest.TestCase):
 
         self.assertEqual(poll_interval_seconds, 25)
         self.assertEqual(servers[0].host, "gpu-a")
+        self.assertEqual(servers[0].device_type, "gpu")
         self.assertEqual(servers[0].ssh_options, {})
         self.assertEqual(servers[1].host, "44")
+        self.assertEqual(servers[1].device_type, "npu")
         self.assertEqual(
             servers[1].ssh_options,
             {
@@ -67,6 +71,25 @@ class ConfigPathTests(unittest.TestCase):
                 "ConnectTimeout": 10,
             },
         )
+
+    def test_load_config_rejects_invalid_device_type(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "servers.toml"
+            config_path.write_text(
+                textwrap.dedent(
+                    """
+                    poll_interval_seconds = 20
+
+                    [[servers]]
+                    Host = "server-a"
+                    DeviceType = "tpu"
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "DeviceType"):
+                load_config(config_path)
 
     def test_load_config_rejects_duplicate_hosts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

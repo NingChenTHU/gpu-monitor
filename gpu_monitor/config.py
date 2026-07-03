@@ -9,6 +9,7 @@ from typing import Any
 class ServerConfig:
     host: str
     ssh_options: dict[str, Any] = field(default_factory=dict)
+    device_type: str = "gpu"
 
 
 def load_config(path: Path) -> tuple[list[ServerConfig], int]:
@@ -28,10 +29,16 @@ def load_config(path: Path) -> tuple[list[ServerConfig], int]:
         if host in seen_hosts:
             raise ValueError(f"Duplicate Host in configuration: {host}")
         seen_hosts.add(host)
+        device_type = _normalize_device_type(item.get("DeviceType", "gpu"))
         servers.append(
             ServerConfig(
                 host=host,
-                ssh_options={key: value for key, value in item.items() if key != "Host"},
+                ssh_options={
+                    key: value
+                    for key, value in item.items()
+                    if key not in {"Host", "DeviceType"}
+                },
+                device_type=device_type,
             )
         )
 
@@ -45,3 +52,10 @@ def load_config(path: Path) -> tuple[list[ServerConfig], int]:
         raise ValueError("poll_interval_seconds must be positive")
 
     return servers, poll_interval_seconds
+
+
+def _normalize_device_type(value: Any) -> str:
+    device_type = str(value).strip().lower()
+    if device_type not in {"gpu", "npu"}:
+        raise ValueError("DeviceType must be gpu or npu")
+    return device_type

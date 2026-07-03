@@ -11,6 +11,21 @@ __APPS__
 __PS__
 123 alice
 """
+NPU_SNAPSHOT_OUTPUT = """__NPU__
++-------------------+-----------------+------------------------------------------------+
+| NPU     Name      | Health          | Power(W)    Temp(C)     Hugepages-Usage(page) |
+| Chip    Device    | Bus-Id          | AICore(%)   Memory-Usage(MB)  HBM-Usage(MB)   |
++===================+=================+================================================+
+| 0       Ascend 910B| OK              | 90.0        42          0    / 0              |
+| 0       0         | 0000:01:00.0    | 45          1024 / 65536      2048 / 65536    |
++-------------------+-----------------+------------------------------------------------+
+__NPU_PROC__
+__NPU_ID__ 0
+| NPU ID | Chip ID | Process ID | Process Memory(MB) |
+| 0      | 0       | 456        | 2048               |
+__PS__
+456 bob
+"""
 SERVER = ServerConfig(host="gpu-a")
 
 
@@ -37,12 +52,37 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
         gpu = snapshot.gpus[0]
+        self.assertEqual(snapshot.device_type, "gpu")
+        self.assertEqual(gpu.device_type, "gpu")
         self.assertEqual(gpu.uuid, "GPU-a")
         self.assertEqual(gpu.processes[0].user, "alice")
         self.assertEqual(gpu.processes[0].memory_mb, 512)
         self.assertFalse(hasattr(gpu.processes[0], "pid"))
         self.assertFalse(hasattr(gpu.processes[0], "command"))
         self.assertEqual(len(client.probes), 1)
+        self.assertIn("nvidia-smi", client.probes[0])
+        self.assertNotIn("npu-smi", client.probes[0])
+
+    async def test_snapshot_collection_uses_npu_probe_for_npu_servers(self) -> None:
+        server = ServerConfig(host="npu-a", device_type="npu")
+        client = FakeSSHClient(stdout=NPU_SNAPSHOT_OUTPUT)
+        monitor = GPUMonitor([server], client)
+
+        snapshot = await monitor.refresh_snapshot(server.host, force=True)
+
+        npu = snapshot.gpus[0]
+        self.assertEqual(snapshot.device_type, "npu")
+        self.assertEqual(npu.device_type, "npu")
+        self.assertEqual(npu.uuid, "npu-0")
+        self.assertEqual(npu.name, "Ascend 910B")
+        self.assertEqual(npu.memory_used_mb, 2048)
+        self.assertEqual(npu.memory_total_mb, 65536)
+        self.assertEqual(npu.utilization_percent, 45)
+        self.assertEqual(npu.processes[0].user, "bob")
+        self.assertEqual(npu.processes[0].memory_mb, 2048)
+        self.assertEqual(len(client.probes), 1)
+        self.assertIn("npu-smi", client.probes[0])
+        self.assertNotIn("nvidia-smi", client.probes[0])
 
     async def test_snapshot_collection_uses_server_connect_timeout_for_probe_timeout(self) -> None:
         server = ServerConfig(host="gpu-a", ssh_options={"ConnectTimeout": 12})

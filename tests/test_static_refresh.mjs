@@ -353,6 +353,82 @@ test("gpu names remove only the nvidia prefix", async () => {
     );
 });
 
+test("npu snapshots render npu labels", async () => {
+    const serverGrid = new FakeElement();
+    const refreshButton = new FakeButton();
+    const refreshStatus = new FakeElement();
+
+    globalThis.document = {
+        querySelector(selector) {
+            if (selector === "#server-grid") {
+                return serverGrid;
+            }
+            if (selector === "#refresh-button") {
+                return refreshButton;
+            }
+            if (selector === "#refresh-status") {
+                return refreshStatus;
+            }
+            return null;
+        },
+        createElement() {
+            return new FakeElement();
+        },
+    };
+    globalThis.setInterval = () => 1;
+    globalThis.fetch = async (url, options) => {
+        if (url === "/api/config") {
+            return {
+                ok: true,
+                async json() {
+                    return { poll_interval_seconds: 20, servers: ["npu-a"] };
+                },
+            };
+        }
+        if (
+            url === "/api/servers/npu-a/refresh"
+            && options?.method === "POST"
+        ) {
+            return {
+                ok: true,
+                async json() {
+                    return {
+                        name: "npu-a",
+                        device_type: "npu",
+                        last_seen: "2026-01-01T12:00:00Z",
+                        is_stale: false,
+                        warnings: [],
+                        gpus: [
+                            {
+                                index: 0,
+                                device_type: "npu",
+                                name: "Ascend 910B",
+                                memory_used_mb: 2048,
+                                memory_total_mb: 65536,
+                                utilization_percent: 45,
+                                processes: [],
+                            },
+                        ],
+                    };
+                },
+            };
+        }
+        throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const appUrl = pathToFileURL("gpu_monitor/static/app.js");
+    appUrl.search = `?t=${Date.now()}-npu-labels`;
+    await import(appUrl.href);
+    await waitFor(() => serverGrid.children.length === 1);
+
+    const header = serverGrid.children[0].children[0].innerHTML;
+    const gpuGrid = serverGrid.children[0].children[1];
+    const gpuHeader = gpuGrid.children[0].children[0].innerHTML;
+
+    assert.match(header, /device-pill">NPU/);
+    assert.match(gpuHeader, /NPU #0 Ascend 910B/);
+});
+
 test("per-server refresh renders fast servers before slow servers finish", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();

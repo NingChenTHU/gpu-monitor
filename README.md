@@ -1,6 +1,6 @@
 # GPU Monitor
 
-GPU Monitor is a small browser-based dashboard for checking GPU usage across SSH-accessible servers. It shows GPU memory usage, utilization, and active compute users without requiring an agent on the target machines.
+GPU Monitor is a small browser-based dashboard for checking GPU or NPU usage across SSH-accessible servers. It shows accelerator memory usage, utilization, and active compute users without requiring an agent on the target machines.
 
 ## Preview
 
@@ -8,22 +8,24 @@ GPU Monitor is a small browser-based dashboard for checking GPU usage across SSH
 
 ## Features
 
-- Monitor multiple GPU servers from one page.
-- Show GPU memory usage, utilization, and active process owners.
+- Monitor multiple GPU or NPU servers from one page.
+- Show accelerator memory usage, utilization, and active process owners.
 - Refresh automatically and provide a manual Refresh button.
-- Keep the last known GPU data visible when a server is temporarily unreachable.
+- Keep the last known accelerator data visible when a server is temporarily unreachable.
 - Update server cards independently, so a slow host does not block the rest of the dashboard.
 
 ## Requirements
 
 - Python 3.11 or newer.
 - SSH access from the machine running GPU Monitor to each target server.
-- NVIDIA drivers and `nvidia-smi` on each target server.
+- NVIDIA drivers and `nvidia-smi` on GPU servers.
+- Ascend `npu-smi` on NPU servers.
 
-Before configuring GPU Monitor, verify that SSH can run `nvidia-smi`:
+Before configuring GPU Monitor, verify that SSH can run the monitor command:
 
 ```sh
 ssh server-a nvidia-smi
+ssh npu-server-a npu-smi info
 ```
 
 ## Installation
@@ -75,6 +77,10 @@ poll_interval_seconds = 20
 
 [[servers]]
 Host = "server-a"
+
+[[servers]]
+Host = "npu-server-a"
+DeviceType = "npu"
 ```
 
 You can also put SSH options directly in the GPU Monitor config:
@@ -92,6 +98,7 @@ ConnectTimeout = 5
 ```
 
 Add more `[[servers]]` blocks to monitor more machines.
+`DeviceType` is optional and defaults to `gpu`; set it to `npu` for Ascend NPU servers.
 
 `poll_interval_seconds` controls the automatic refresh interval. Restart GPU Monitor after changing the configuration file.
 
@@ -107,6 +114,7 @@ Test the same host from your terminal:
 
 ```sh
 ssh server-a nvidia-smi
+ssh npu-server-a npu-smi info
 ```
 
 If that command fails, fix the SSH login, key, port, or network issue first.
