@@ -39,7 +39,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
         self.assertTrue(snapshot.is_stale)
-        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
+        self.assertEqual(snapshot.devices[0].uuid, "GPU-a")
         self.assertEqual(
             snapshot.warnings,
             ["Polling failed; showing last known data"],
@@ -51,15 +51,15 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
 
         snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        gpu = snapshot.gpus[0]
+        device = snapshot.devices[0]
         self.assertEqual(snapshot.device_type, "gpu")
-        self.assertEqual(gpu.device_type, "gpu")
-        self.assertEqual(gpu.uuid, "GPU-a")
-        self.assertEqual(gpu.display_name, "GeForce RTX 4090")
-        self.assertEqual(gpu.processes[0].user, "alice")
-        self.assertEqual(gpu.processes[0].memory_mb, 512)
-        self.assertFalse(hasattr(gpu.processes[0], "pid"))
-        self.assertFalse(hasattr(gpu.processes[0], "command"))
+        self.assertEqual(device.device_type, "gpu")
+        self.assertEqual(device.uuid, "GPU-a")
+        self.assertEqual(device.display_name, "GeForce RTX 4090")
+        self.assertEqual(device.processes[0].user, "alice")
+        self.assertEqual(device.processes[0].memory_mb, 512)
+        self.assertFalse(hasattr(device.processes[0], "pid"))
+        self.assertFalse(hasattr(device.processes[0], "command"))
         self.assertEqual(len(client.probes), 1)
         self.assertIn("nvidia-smi", client.probes[0])
         self.assertNotIn("npu-smi", client.probes[0])
@@ -71,7 +71,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
 
         snapshot = await monitor.refresh_snapshot(server.host, force=True)
 
-        npu = snapshot.gpus[0]
+        npu = snapshot.devices[0]
         self.assertEqual(snapshot.device_type, "npu")
         self.assertEqual(npu.device_type, "npu")
         self.assertEqual(npu.uuid, "npu-0")
@@ -121,8 +121,8 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
 
         snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
-        self.assertEqual(snapshot.gpus[0].processes, [])
+        self.assertEqual(snapshot.devices[0].uuid, "GPU-a")
+        self.assertEqual(snapshot.devices[0].processes, [])
 
     async def test_snapshot_collection_skips_malformed_rows(self) -> None:
         client = FakeSSHClient(
@@ -141,9 +141,9 @@ bad
 
         snapshot = await monitor.refresh_snapshot(SERVER.host, force=True)
 
-        self.assertEqual(len(snapshot.gpus), 1)
-        self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
-        self.assertEqual(snapshot.gpus[0].processes[0].user, "alice")
+        self.assertEqual(len(snapshot.devices), 1)
+        self.assertEqual(snapshot.devices[0].uuid, "GPU-a")
+        self.assertEqual(snapshot.devices[0].processes[0].user, "alice")
 
     async def test_non_force_refresh_uses_cache_inside_poll_interval(self) -> None:
         client = FakeSSHClient()

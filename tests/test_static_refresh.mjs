@@ -190,7 +190,7 @@ test("refresh reuses existing server cards for stable server names", async () =>
         last_seen: "2026-01-01T12:00:00Z",
         is_stale: false,
         warnings: [],
-        gpus: [
+        devices: [
             {
                 index: 0,
                 name: "NVIDIA RTX A6000",
@@ -310,7 +310,7 @@ test("device names prefer backend display names", async () => {
                         last_seen: "2026-01-01T12:00:00Z",
                         is_stale: false,
                         warnings: [],
-                        gpus: [
+                        devices: [
                             {
                                 index: 0,
                                 name: "NVIDIA H100 PCIe",
@@ -338,19 +338,19 @@ test("device names prefer backend display names", async () => {
     };
 
     const appUrl = pathToFileURL("gpu_monitor/static/app.js");
-    appUrl.search = `?t=${Date.now()}-gpu-name`;
+    appUrl.search = `?t=${Date.now()}-device-name`;
     await import(appUrl.href);
     await waitFor(() => serverGrid.children.length === 1);
 
-    const gpuGrid = serverGrid.children[0].children[1];
-    const firstGpuHeader = gpuGrid.children[0].children[0].innerHTML;
-    const secondGpuHeader = gpuGrid.children[1].children[0].innerHTML;
+    const deviceGrid = serverGrid.children[0].children[1];
+    const firstDeviceHeader = deviceGrid.children[0].children[0].innerHTML;
+    const secondDeviceHeader = deviceGrid.children[1].children[0].innerHTML;
 
-    assert.match(firstGpuHeader, /#0 H100 PCIe/);
-    assert.doesNotMatch(firstGpuHeader, /NVIDIA H100 PCIe/);
-    assert.match(secondGpuHeader, /#1 RTX PRO 6000 Blackwell Workstation Edition/);
+    assert.match(firstDeviceHeader, /#0 H100 PCIe/);
+    assert.doesNotMatch(firstDeviceHeader, /NVIDIA H100 PCIe/);
+    assert.match(secondDeviceHeader, /#1 RTX PRO 6000 Blackwell Workstation Edition/);
     assert.match(
-        secondGpuHeader,
+        secondDeviceHeader,
         /title="RTX PRO 6000 Blackwell Workstation Edition"/,
     );
 });
@@ -400,7 +400,7 @@ test("device names fall back to names without device type labels", async () => {
                         last_seen: "2026-01-01T12:00:00Z",
                         is_stale: false,
                         warnings: [],
-                        gpus: [
+                        devices: [
                             {
                                 index: 0,
                                 device_type: "npu",
@@ -424,12 +424,12 @@ test("device names fall back to names without device type labels", async () => {
     await waitFor(() => serverGrid.children.length === 1);
 
     const header = serverGrid.children[0].children[0].innerHTML;
-    const gpuGrid = serverGrid.children[0].children[1];
-    const gpuHeader = gpuGrid.children[0].children[0].innerHTML;
+    const deviceGrid = serverGrid.children[0].children[1];
+    const deviceHeader = deviceGrid.children[0].children[0].innerHTML;
 
     assert.doesNotMatch(header, /device-pill/);
-    assert.match(gpuHeader, /#0 Ascend 910B/);
-    assert.doesNotMatch(gpuHeader, /NPU #0/);
+    assert.match(deviceHeader, /#0 Ascend 910B/);
+    assert.doesNotMatch(deviceHeader, /NPU #0/);
 });
 
 test("per-server refresh renders fast servers before slow servers finish", async () => {
@@ -444,7 +444,7 @@ test("per-server refresh renders fast servers before slow servers finish", async
         last_seen: "2026-01-01T12:00:00Z",
         is_stale: false,
         warnings: [],
-        gpus: [
+        devices: [
             {
                 index: 0,
                 name: "NVIDIA RTX A6000",
@@ -570,7 +570,7 @@ test("manual refresh leaves button enabled and skips servers already refreshing"
                         last_seen: null,
                         is_stale: true,
                         warnings: ["Waiting for first data"],
-                        gpus: [],
+                        devices: [],
                     };
                 },
             };
@@ -587,7 +587,7 @@ test("manual refresh leaves button enabled and skips servers already refreshing"
                                 last_seen: null,
                                 is_stale: true,
                                 warnings: ["Waiting for first data"],
-                                gpus: [],
+                                devices: [],
                             };
                         },
                     });

@@ -170,7 +170,7 @@ h1 {
 }
 
 .warning-pill,
-.gpu-processes span {
+.device-processes span {
     display: inline-flex;
     align-items: center;
     min-height: 1.55rem;
@@ -191,13 +191,13 @@ h1 {
     white-space: nowrap;
 }
 
-.gpu-grid {
+.device-grid {
     display: grid;
     grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 0.45rem;
 }
 
-.gpu-item {
+.device-item {
     min-width: 0;
     min-height: 5.6rem;
     border: 1px solid var(--line-soft);
@@ -209,7 +209,7 @@ h1 {
     gap: 0.35rem;
 }
 
-.gpu-header {
+.device-header {
     min-height: 0;
     min-width: 0;
     width: 100%;
@@ -220,7 +220,7 @@ h1 {
     line-height: 1.35;
 }
 
-.gpu-name {
+.device-name {
     display: block;
     width: 100%;
     min-width: 0;
@@ -230,7 +230,7 @@ h1 {
     white-space: nowrap;
 }
 
-.gpu-bars {
+.device-bars {
     display: flex;
     flex-direction: column;
     gap: 0.34rem;
@@ -273,14 +273,14 @@ h1 {
     white-space: nowrap;
 }
 
-.gpu-processes {
+.device-processes {
     display: flex;
     flex-wrap: wrap;
     align-content: start;
     gap: 0.25rem;
 }
 
-.gpu-processes span {
+.device-processes span {
     background: #e0f2fe;
     color: #075985;
     min-height: 1.25rem;
@@ -288,13 +288,13 @@ h1 {
     font-size: 0.68rem;
 }
 
-.gpu-processes .process-more {
+.device-processes .process-more {
     justify-content: center;
     min-width: 1.45rem;
     padding-inline: 0.42rem;
 }
 
-.gpu-empty {
+.device-empty {
     min-height: 4rem;
     border: 1px dashed var(--line);
     border-radius: 8px;
@@ -306,13 +306,13 @@ h1 {
 }
 
 @media (max-width: 1180px) {
-    .gpu-grid {
+    .device-grid {
         grid-template-columns: repeat(6, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 900px) {
-    .gpu-grid {
+    .device-grid {
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
@@ -327,7 +327,7 @@ h1 {
         flex-direction: column;
     }
 
-    .gpu-grid {
+    .device-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }

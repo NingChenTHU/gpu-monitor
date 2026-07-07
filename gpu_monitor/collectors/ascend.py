@@ -7,7 +7,7 @@ from gpu_monitor.collectors.common import (
     map_pid_details,
     parse_snapshot_sections,
 )
-from gpu_monitor.models import GPUStatus, ProcessInfo, ServerSnapshot
+from gpu_monitor.models import DeviceStatus, ProcessInfo, ServerSnapshot
 from gpu_monitor.ssh_client import SSHMonitorClient
 
 _NPU_SNAPSHOT_PROBE = (
@@ -42,23 +42,23 @@ async def collect(
 ) -> ServerSnapshot:
     raw = await ssh_client.run_probe(server, _NPU_SNAPSHOT_PROBE, timeout=timeout)
     sections = parse_snapshot_sections(raw, ("NPU", "NPU_PROC", "PS"))
-    gpus = _parse_npu_info_lines(sections.get("NPU", []))
+    devices = _parse_npu_info_lines(sections.get("NPU", []))
     processes_by_npu = _map_npu_process_rows(
         sections.get("NPU_PROC", []),
         sections.get("PS", []),
     )
 
-    for gpu in gpus:
-        gpu.processes = processes_by_npu.get(gpu.uuid, [])
-        gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
+    for device in devices:
+        device.processes = processes_by_npu.get(device.uuid, [])
+        device.utilization_percent = clamp_percent(device.utilization_percent)
 
-    return ServerSnapshot(name=server.host, device_type="npu", gpus=gpus)
+    return ServerSnapshot(name=server.host, device_type="npu", devices=devices)
 
 
-def _parse_npu_info_lines(lines: Iterable[str]) -> list[GPUStatus]:
+def _parse_npu_info_lines(lines: Iterable[str]) -> list[DeviceStatus]:
     rows = [_split_table_row(line) for line in lines]
     rows = [row for row in rows if row]
-    gpus: list[GPUStatus] = []
+    devices: list[DeviceStatus] = []
     index = 0
     while index < len(rows):
         device = _parse_npu_device_row(rows[index])
@@ -73,8 +73,8 @@ def _parse_npu_info_lines(lines: Iterable[str]) -> list[GPUStatus]:
 
         npu_index, name = device
         memory_used_mb, memory_total_mb, utilization_percent = metrics
-        gpus.append(
-            GPUStatus(
+        devices.append(
+            DeviceStatus(
                 index=npu_index,
                 uuid=f"npu-{npu_index}",
                 name=name,
@@ -86,7 +86,7 @@ def _parse_npu_info_lines(lines: Iterable[str]) -> list[GPUStatus]:
             )
         )
         index += 2
-    return gpus
+    return devices
 
 
 def _parse_npu_device_row(row: list[str]) -> tuple[int, str] | None:

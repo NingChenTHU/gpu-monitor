@@ -9,7 +9,7 @@ class ProcessInfo:
 
 
 @dataclass(slots=True)
-class GPUStatus:
+class DeviceStatus:
     index: int
     uuid: str
     name: str
@@ -27,5 +27,5 @@ class ServerSnapshot:
     last_seen: datetime | None = None
     is_stale: bool = False
     device_type: str | None = None
-    gpus: list[GPUStatus] = field(default_factory=list)
+    devices: list[DeviceStatus] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)

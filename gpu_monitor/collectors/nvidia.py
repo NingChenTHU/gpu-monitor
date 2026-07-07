@@ -7,7 +7,7 @@ from gpu_monitor.collectors.common import (
     map_pid_details,
     parse_snapshot_sections,
 )
-from gpu_monitor.models import GPUStatus, ProcessInfo, ServerSnapshot
+from gpu_monitor.models import DeviceStatus, ProcessInfo, ServerSnapshot
 from gpu_monitor.ssh_client import SSHMonitorClient
 
 _GPU_SNAPSHOT_PROBE = (
@@ -38,16 +38,18 @@ async def collect(
     raw = await ssh_client.run_probe(server, _GPU_SNAPSHOT_PROBE, timeout=timeout)
     sections = parse_snapshot_sections(raw, ("GPU", "APPS", "PS"))
     gpu_rows = _parse_csv_lines("\n".join(sections.get("GPU", [])))
-    gpus = [gpu for row in gpu_rows if (gpu := _parse_gpu_row(row)) is not None]
+    devices = [
+        device for row in gpu_rows if (device := _parse_gpu_row(row)) is not None
+    ]
 
     process_rows = _parse_csv_lines("\n".join(sections.get("APPS", [])))
     processes_by_gpu = _map_process_rows(process_rows, sections.get("PS", []))
 
-    for gpu in gpus:
-        gpu.processes = processes_by_gpu.get(gpu.uuid, [])
-        gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
+    for device in devices:
+        device.processes = processes_by_gpu.get(device.uuid, [])
+        device.utilization_percent = clamp_percent(device.utilization_percent)
 
-    return ServerSnapshot(name=server.host, device_type="gpu", gpus=gpus)
+    return ServerSnapshot(name=server.host, device_type="gpu", devices=devices)
 
 
 def _parse_csv_lines(raw: str) -> list[list[str]]:
@@ -74,7 +76,7 @@ def _map_process_rows(
     return map_pid_details(pid_to_gpus, process_lines)
 
 
-def _parse_gpu_row(row: list[str]) -> GPUStatus | None:
+def _parse_gpu_row(row: list[str]) -> DeviceStatus | None:
     if len(row) < 6:
         return None
     try:
@@ -87,7 +89,7 @@ def _parse_gpu_row(row: list[str]) -> GPUStatus | None:
 
     name = row[2]
     display_name = name[7:].strip() if name.lower().startswith("nvidia ") else None
-    return GPUStatus(
+    return DeviceStatus(
         index=index,
         uuid=row[1],
         name=name,

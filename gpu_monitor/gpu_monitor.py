@@ -114,7 +114,7 @@ class GPUMonitor:
         except Exception:
             async with self._lock:
                 previous = self._snapshots.get(server.host)
-            if previous and previous.gpus:
+            if previous and previous.devices:
                 snapshot = replace(
                     previous,
                     is_stale=True,
@@ -126,7 +126,7 @@ class GPUMonitor:
                     last_seen=None,
                     is_stale=True,
                     device_type=server.device_type,
-                    gpus=[],
+                    devices=[],
                     warnings=["Polling failed; no data available"],
                 )
         async with self._lock:

@@ -133,7 +133,7 @@ function placeholderSnapshot(serverName) {
         name: serverName,
         last_seen: null,
         is_stale: true,
-        gpus: [],
+        devices: [],
         warnings: ["Waiting for first data"],
     };
 }
@@ -159,7 +159,7 @@ function setServerRefreshing(serverName, isRefreshing) {
 
 function renderServerCard(card, server) {
     const hasWarning = Boolean(server.warnings && server.warnings.length);
-    const devices = server.gpus || [];
+    const devices = server.devices || [];
     const hasNoDeviceData = !devices.length;
     const isCompact = hasWarning && hasNoDeviceData;
     const isRefreshing = refreshingServers.has(server.name);
@@ -190,30 +190,30 @@ function renderServerCard(card, server) {
 
     card.appendChild(header);
 
-    const gpuGrid = document.createElement("div");
-    gpuGrid.className = "gpu-grid";
+    const deviceGrid = document.createElement("div");
+    deviceGrid.className = "device-grid";
 
     if (!hasNoDeviceData) {
-        devices.forEach((gpu) => {
-            const gpuDiv = document.createElement("div");
-            gpuDiv.className = "gpu-item";
+        devices.forEach((device) => {
+            const deviceDiv = document.createElement("div");
+            deviceDiv.className = "device-item";
 
-            const memPercent = percent(gpu.memory_used_mb, gpu.memory_total_mb);
-            const utilPercent = clampPercent(gpu.utilization_percent ?? 0);
-            const usedGb = formatMemoryGb(gpu.memory_used_mb);
-            const totalGb = formatMemoryGb(gpu.memory_total_mb);
+            const memPercent = percent(device.memory_used_mb, device.memory_total_mb);
+            const utilPercent = clampPercent(device.utilization_percent ?? 0);
+            const usedGb = formatMemoryGb(device.memory_used_mb);
+            const totalGb = formatMemoryGb(device.memory_total_mb);
             const memoryLabel = `${usedGb}/${totalGb} GB`;
 
-            const gpuHeader = document.createElement("div");
-            gpuHeader.className = "gpu-header";
-            const gpuName = String(gpu.display_name || gpu.name || "");
-            gpuHeader.innerHTML = `
-                <span class="gpu-name" title="${escapeHtml(gpuName)}">#${gpu.index} ${escapeHtml(gpuName)}</span>
+            const deviceHeader = document.createElement("div");
+            deviceHeader.className = "device-header";
+            const deviceName = String(device.display_name || device.name || "");
+            deviceHeader.innerHTML = `
+                <span class="device-name" title="${escapeHtml(deviceName)}">#${device.index} ${escapeHtml(deviceName)}</span>
             `;
-            gpuDiv.appendChild(gpuHeader);
+            deviceDiv.appendChild(deviceHeader);
 
             const bars = document.createElement("div");
-            bars.className = "gpu-bars";
+            bars.className = "device-bars";
             bars.innerHTML = `
                 <div class="bar-row">
                     <div class="bar memory"><span style="width: ${memPercent}%"></span></div>
@@ -224,26 +224,26 @@ function renderServerCard(card, server) {
                     <span class="bar-label">Util ${utilPercent}%</span>
                 </div>
             `;
-            gpuDiv.appendChild(bars);
+            deviceDiv.appendChild(bars);
 
-            if (gpu.processes && gpu.processes.length) {
+            if (device.processes && device.processes.length) {
                 const processDiv = document.createElement("div");
-                processDiv.className = "gpu-processes";
-                processDiv.innerHTML = renderPrimaryProcess(gpu.processes);
-                gpuDiv.appendChild(processDiv);
+                processDiv.className = "device-processes";
+                processDiv.innerHTML = renderPrimaryProcess(device.processes);
+                deviceDiv.appendChild(processDiv);
             }
 
-            gpuGrid.appendChild(gpuDiv);
+            deviceGrid.appendChild(deviceDiv);
         });
     } else if (!hasWarning) {
         const empty = document.createElement("div");
-        empty.className = "gpu-empty";
+        empty.className = "device-empty";
         empty.textContent = "No device data";
-        gpuGrid.appendChild(empty);
+        deviceGrid.appendChild(empty);
     }
 
     if (!isCompact) {
-        card.appendChild(gpuGrid);
+        card.appendChild(deviceGrid);
     }
 }
 
