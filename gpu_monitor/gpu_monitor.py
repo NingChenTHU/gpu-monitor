@@ -1,17 +1,20 @@
 import asyncio
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from gpu_monitor.collectors import DEFAULT_COLLECTORS
-from gpu_monitor.collectors.base import DeviceCollector
+from gpu_monitor.collectors import ascend, nvidia
 from gpu_monitor.config import ServerConfig
-from gpu_monitor.models import GPUStatus, ProcessInfo, ServerSnapshot
+from gpu_monitor.models import ServerSnapshot
 from gpu_monitor.ssh_client import SSHMonitorClient
 
 _DEFAULT_PROBE_TIMEOUT_SECONDS = 5.0
 _MAX_PROBE_TIMEOUT_SECONDS = 30.0
 _PROBE_TIMEOUT_POLL_INTERVAL_BUFFER_SECONDS = 1.0
+_COLLECTORS = {
+    "gpu": nvidia.collect,
+    "npu": ascend.collect,
+}
 
 
 class GPUMonitor:
@@ -23,11 +26,9 @@ class GPUMonitor:
         ssh_client: SSHMonitorClient,
         *,
         poll_interval_seconds: int = 20,
-        collectors: Mapping[str, DeviceCollector] | None = None,
     ) -> None:
         self._ssh_client = ssh_client
         self._poll_interval_seconds = poll_interval_seconds
-        self._collectors = dict(collectors or DEFAULT_COLLECTORS)
         self._servers_by_host: dict[str, ServerConfig] = {}
         self._probe_timeout_by_host: dict[str, float] = {}
         self._snapshots: dict[str, ServerSnapshot] = {}
@@ -104,7 +105,12 @@ class GPUMonitor:
 
     async def _poll_once(self, server: ServerConfig) -> None:
         try:
-            snapshot = await self._collect_snapshot(server)
+            snapshot = await _COLLECTORS[server.device_type](
+                server,
+                self._ssh_client,
+                timeout=self._probe_timeout_by_host[server.host],
+            )
+            snapshot = replace(snapshot, last_seen=datetime.now(UTC))
         except Exception:
             async with self._lock:
                 previous = self._snapshots.get(server.host)
@@ -125,15 +131,3 @@ class GPUMonitor:
                 )
         async with self._lock:
             self._snapshots[server.host] = snapshot
-
-    async def _collect_snapshot(self, server: ServerConfig) -> ServerSnapshot:
-        collector = self._collectors[server.device_type]
-        snapshot = await collector.collect(
-            server,
-            self._ssh_client,
-            timeout=self._probe_timeout_by_host[server.host],
-        )
-        return replace(snapshot, last_seen=datetime.now(UTC))
-
-
-__all__ = ["GPUMonitor", "GPUStatus", "ProcessInfo", "ServerSnapshot"]

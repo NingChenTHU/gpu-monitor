@@ -29,33 +29,25 @@ _GPU_SNAPSHOT_PROBE = (
 )
 
 
-class NvidiaGpuCollector:
-    device_type = "gpu"
+async def collect(
+    server: ServerConfig,
+    ssh_client: SSHMonitorClient,
+    *,
+    timeout: float,
+) -> ServerSnapshot:
+    raw = await ssh_client.run_probe(server, _GPU_SNAPSHOT_PROBE, timeout=timeout)
+    sections = parse_snapshot_sections(raw, ("GPU", "APPS", "PS"))
+    gpu_rows = _parse_csv_lines("\n".join(sections.get("GPU", [])))
+    gpus = [gpu for row in gpu_rows if (gpu := _parse_gpu_row(row)) is not None]
 
-    async def collect(
-        self,
-        server: ServerConfig,
-        ssh_client: SSHMonitorClient,
-        *,
-        timeout: float,
-    ) -> ServerSnapshot:
-        raw = await ssh_client.run_probe(server, _GPU_SNAPSHOT_PROBE, timeout=timeout)
-        sections = parse_snapshot_sections(raw, ("GPU", "APPS", "PS"))
-        gpu_rows = _parse_csv_lines("\n".join(sections.get("GPU", [])))
-        gpus = [gpu for row in gpu_rows if (gpu := _parse_gpu_row(row)) is not None]
+    process_rows = _parse_csv_lines("\n".join(sections.get("APPS", [])))
+    processes_by_gpu = _map_process_rows(process_rows, sections.get("PS", []))
 
-        process_rows = _parse_csv_lines("\n".join(sections.get("APPS", [])))
-        processes_by_gpu = _map_process_rows(process_rows, sections.get("PS", []))
+    for gpu in gpus:
+        gpu.processes = processes_by_gpu.get(gpu.uuid, [])
+        gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
 
-        for gpu in gpus:
-            gpu.processes = processes_by_gpu.get(gpu.uuid, [])
-            gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
-
-        return ServerSnapshot(
-            name=server.host,
-            device_type=self.device_type,
-            gpus=gpus,
-        )
+    return ServerSnapshot(name=server.host, device_type="gpu", gpus=gpus)
 
 
 def _parse_csv_lines(raw: str) -> list[list[str]]:
@@ -93,18 +85,14 @@ def _parse_gpu_row(row: list[str]) -> GPUStatus | None:
     except ValueError:
         return None
 
+    name = row[2]
+    display_name = name[7:].strip() if name.lower().startswith("nvidia ") else None
     return GPUStatus(
         index=index,
         uuid=row[1],
-        name=row[2],
-        display_name=_display_name(row[2]),
+        name=name,
+        display_name=display_name or None,
         memory_total_mb=memory_total_mb,
         memory_used_mb=memory_used_mb,
         utilization_percent=utilization_percent,
     )
-
-
-def _display_name(name: str) -> str:
-    if name.lower().startswith("nvidia "):
-        return name[7:].strip() or name
-    return name

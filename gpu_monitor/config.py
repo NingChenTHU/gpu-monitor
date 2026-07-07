@@ -29,7 +29,9 @@ def load_config(path: Path) -> tuple[list[ServerConfig], int]:
         if host in seen_hosts:
             raise ValueError(f"Duplicate Host in configuration: {host}")
         seen_hosts.add(host)
-        device_type = _normalize_device_type(item.get("DeviceType", "gpu"))
+        device_type = str(item.get("DeviceType", "gpu")).strip().lower()
+        if device_type not in {"gpu", "npu"}:
+            raise ValueError("DeviceType must be gpu or npu")
         servers.append(
             ServerConfig(
                 host=host,
@@ -52,10 +54,3 @@ def load_config(path: Path) -> tuple[list[ServerConfig], int]:
         raise ValueError("poll_interval_seconds must be positive")
 
     return servers, poll_interval_seconds
-
-
-def _normalize_device_type(value: Any) -> str:
-    device_type = str(value).strip().lower()
-    if device_type not in {"gpu", "npu"}:
-        raise ValueError("DeviceType must be gpu or npu")
-    return device_type

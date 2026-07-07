@@ -34,33 +34,25 @@ _NPU_SNAPSHOT_PROBE = (
 _NPU_PROCESS_MARKER_PREFIX = "__NPU_ID__"
 
 
-class AscendNpuCollector:
-    device_type = "npu"
+async def collect(
+    server: ServerConfig,
+    ssh_client: SSHMonitorClient,
+    *,
+    timeout: float,
+) -> ServerSnapshot:
+    raw = await ssh_client.run_probe(server, _NPU_SNAPSHOT_PROBE, timeout=timeout)
+    sections = parse_snapshot_sections(raw, ("NPU", "NPU_PROC", "PS"))
+    gpus = _parse_npu_info_lines(sections.get("NPU", []))
+    processes_by_npu = _map_npu_process_rows(
+        sections.get("NPU_PROC", []),
+        sections.get("PS", []),
+    )
 
-    async def collect(
-        self,
-        server: ServerConfig,
-        ssh_client: SSHMonitorClient,
-        *,
-        timeout: float,
-    ) -> ServerSnapshot:
-        raw = await ssh_client.run_probe(server, _NPU_SNAPSHOT_PROBE, timeout=timeout)
-        sections = parse_snapshot_sections(raw, ("NPU", "NPU_PROC", "PS"))
-        gpus = _parse_npu_info_lines(sections.get("NPU", []))
-        processes_by_npu = _map_npu_process_rows(
-            sections.get("NPU_PROC", []),
-            sections.get("PS", []),
-        )
+    for gpu in gpus:
+        gpu.processes = processes_by_npu.get(gpu.uuid, [])
+        gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
 
-        for gpu in gpus:
-            gpu.processes = processes_by_npu.get(gpu.uuid, [])
-            gpu.utilization_percent = clamp_percent(gpu.utilization_percent)
-
-        return ServerSnapshot(
-            name=server.host,
-            device_type=self.device_type,
-            gpus=gpus,
-        )
+    return ServerSnapshot(name=server.host, device_type="npu", gpus=gpus)
 
 
 def _parse_npu_info_lines(lines: Iterable[str]) -> list[GPUStatus]:
@@ -86,7 +78,6 @@ def _parse_npu_info_lines(lines: Iterable[str]) -> list[GPUStatus]:
                 index=npu_index,
                 uuid=f"npu-{npu_index}",
                 name=name,
-                display_name=name,
                 memory_total_mb=memory_total_mb,
                 memory_used_mb=memory_used_mb,
                 utilization_percent=utilization_percent,

@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from gpu_monitor.gpu_monitor import ServerSnapshot
 from gpu_monitor.main import create_app
+from gpu_monitor.models import ServerSnapshot
 
 
 class ApiTests(unittest.TestCase):

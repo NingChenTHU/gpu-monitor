@@ -7,7 +7,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from gpu_monitor.config import load_config
-from gpu_monitor.gpu_monitor import GPUMonitor, ServerSnapshot
+from gpu_monitor.gpu_monitor import GPUMonitor
+from gpu_monitor.models import ServerSnapshot
 from gpu_monitor.ssh_client import SSHMonitorClient
 
 STATIC_DIR = files("gpu_monitor") / "static"
