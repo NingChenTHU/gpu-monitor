@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import tempfile
 import types
@@ -68,6 +69,17 @@ class CliTests(unittest.TestCase):
         self.assertIn('# Host = "server-a"', contents)
         self.assertIn('# Host = "npu-server-a"', contents)
         self.assertIn('# DeviceType = "npu"', contents)
+
+    def test_module_execution_calls_main(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "gpu_monitor.cli", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("usage: gpu-monitor", result.stdout)
 
 
 if __name__ == "__main__":

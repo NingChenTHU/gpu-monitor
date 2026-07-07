@@ -75,3 +75,7 @@ def _init_config(config: Path, *, force: bool = False) -> int:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(SAMPLE_CONFIG, encoding="utf-8")
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
