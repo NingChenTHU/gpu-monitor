@@ -31,7 +31,7 @@ class ApiTests(unittest.TestCase):
     def test_single_server_refresh_returns_one_snapshot(self) -> None:
         app = create_test_app()
         monitor = FakeMonitor()
-        app.state.gpu_monitor = monitor
+        app.state.device_monitor = monitor
         client = TestClient(app)
 
         response = client.post("/api/servers/gpu-a/refresh?force=true")
@@ -42,7 +42,7 @@ class ApiTests(unittest.TestCase):
 
     def test_single_server_refresh_returns_404_for_unknown_server(self) -> None:
         app = create_test_app()
-        app.state.gpu_monitor = FakeMonitor()
+        app.state.device_monitor = FakeMonitor()
         client = TestClient(app)
 
         response = client.post("/api/servers/missing/refresh")

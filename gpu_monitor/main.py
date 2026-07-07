@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from gpu_monitor.config import load_config
-from gpu_monitor.gpu_monitor import GPUMonitor
+from gpu_monitor.monitor import DeviceMonitor
 from gpu_monitor.models import ServerSnapshot
 from gpu_monitor.ssh_client import SSHMonitorClient
 
@@ -23,12 +23,12 @@ def create_app(config_path: Path) -> FastAPI:
             "servers": [server.host for server in servers],
         }
         ssh_client = SSHMonitorClient(servers)
-        gpu_monitor = GPUMonitor(
+        device_monitor = DeviceMonitor(
             servers,
             ssh_client,
             poll_interval_seconds=poll_interval_seconds,
         )
-        app.state.gpu_monitor = gpu_monitor
+        app.state.device_monitor = device_monitor
         try:
             yield
         finally:
@@ -42,7 +42,7 @@ def create_app(config_path: Path) -> FastAPI:
         request: Request, server_name: str, force: bool = False
     ) -> ServerSnapshot:
         try:
-            return await request.app.state.gpu_monitor.refresh_snapshot(
+            return await request.app.state.device_monitor.refresh_snapshot(
                 server_name, force=force
             )
         except KeyError as exc:

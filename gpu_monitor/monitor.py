@@ -17,7 +17,7 @@ _COLLECTORS = {
 }
 
 
-class GPUMonitor:
+class DeviceMonitor:
     """Refreshes device metrics on each server via SSH."""
 
     def __init__(
