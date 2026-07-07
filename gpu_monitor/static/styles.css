@@ -170,7 +170,6 @@ h1 {
 }
 
 .warning-pill,
-.device-pill,
 .gpu-processes span {
     display: inline-flex;
     align-items: center;
@@ -190,15 +189,6 @@ h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.device-pill {
-    border: 1px solid rgba(8, 145, 178, 0.24);
-    background: #ecfeff;
-    color: #155e75;
-    min-height: 1.25rem;
-    padding: 0.16rem 0.46rem;
-    font-size: 0.68rem;
 }
 
 .gpu-grid {

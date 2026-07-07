@@ -3,6 +3,7 @@ import unittest
 
 from gpu_monitor.config import ServerConfig
 from gpu_monitor.gpu_monitor import GPUMonitor
+from gpu_monitor.models import ServerSnapshot
 
 SNAPSHOT_OUTPUT = """__GPU__
 0, GPU-a, NVIDIA GeForce RTX 4090, 24564, 1024, 55
@@ -42,7 +43,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snapshot.gpus[0].uuid, "GPU-a")
         self.assertEqual(
             snapshot.warnings,
-            ["Polling failed; showing last known GPU data"],
+            ["Polling failed; showing last known data"],
         )
 
     async def test_snapshot_collection_maps_process_details_from_sections(self) -> None:
@@ -55,6 +56,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snapshot.device_type, "gpu")
         self.assertEqual(gpu.device_type, "gpu")
         self.assertEqual(gpu.uuid, "GPU-a")
+        self.assertEqual(gpu.display_name, "GeForce RTX 4090")
         self.assertEqual(gpu.processes[0].user, "alice")
         self.assertEqual(gpu.processes[0].memory_mb, 512)
         self.assertFalse(hasattr(gpu.processes[0], "pid"))
@@ -75,6 +77,7 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(npu.device_type, "npu")
         self.assertEqual(npu.uuid, "npu-0")
         self.assertEqual(npu.name, "Ascend 910B")
+        self.assertEqual(npu.display_name, "Ascend 910B")
         self.assertEqual(npu.memory_used_mb, 2048)
         self.assertEqual(npu.memory_total_mb, 65536)
         self.assertEqual(npu.utilization_percent, 45)
@@ -83,6 +86,16 @@ class GPUMonitorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(client.probes), 1)
         self.assertIn("npu-smi", client.probes[0])
         self.assertNotIn("nvidia-smi", client.probes[0])
+
+    async def test_snapshot_collection_uses_registered_collector_for_device_type(self) -> None:
+        server = ServerConfig(host="device-a", device_type="custom")
+        collector = FakeCollector()
+        monitor = GPUMonitor([server], FakeSSHClient(), collectors={"custom": collector})
+
+        snapshot = await monitor.refresh_snapshot(server.host, force=True)
+
+        self.assertEqual(snapshot.device_type, "custom")
+        self.assertEqual(collector.hosts, ["device-a"])
 
     async def test_snapshot_collection_uses_server_connect_timeout_for_probe_timeout(self) -> None:
         server = ServerConfig(host="gpu-a", ssh_options={"ConnectTimeout": 12})
@@ -230,3 +243,20 @@ class FakeSSHClient:
         if self.fail:
             raise TimeoutError
         return self.stdout
+
+
+class FakeCollector:
+    device_type = "custom"
+
+    def __init__(self) -> None:
+        self.hosts: list[str] = []
+
+    async def collect(
+        self,
+        server: ServerConfig,
+        ssh_client: FakeSSHClient,
+        *,
+        timeout: float,
+    ) -> ServerSnapshot:
+        self.hosts.append(server.host)
+        return ServerSnapshot(name=server.host, device_type=self.device_type)

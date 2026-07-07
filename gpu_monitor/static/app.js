@@ -52,25 +52,6 @@ function formatMemoryGb(memoryMb) {
     return Math.max(0, Math.round(value / 1024));
 }
 
-function formatDeviceType(deviceType) {
-    return String(deviceType || "gpu").toLowerCase() === "npu" ? "NPU" : "GPU";
-}
-
-function detectServerDeviceType(server) {
-    if (server.device_type) {
-        return formatDeviceType(server.device_type);
-    }
-    const firstGpu = server.gpus && server.gpus[0];
-    if (!firstGpu) {
-        return "";
-    }
-    return formatDeviceType(firstGpu.device_type);
-}
-
-function formatGpuName(name, deviceType = "gpu") {
-    return String(name || formatDeviceType(deviceType)).replace(/^NVIDIA\s+/i, "");
-}
-
 function renderPrimaryProcess(processes) {
     if (!processes || !processes.length) {
         return "";
@@ -153,7 +134,7 @@ function placeholderSnapshot(serverName) {
         last_seen: null,
         is_stale: true,
         gpus: [],
-        warnings: ["Waiting for first GPU data"],
+        warnings: ["Waiting for first data"],
     };
 }
 
@@ -178,10 +159,10 @@ function setServerRefreshing(serverName, isRefreshing) {
 
 function renderServerCard(card, server) {
     const hasWarning = Boolean(server.warnings && server.warnings.length);
-    const hasNoGpuData = !server.gpus.length;
-    const isCompact = hasWarning && hasNoGpuData;
+    const devices = server.gpus || [];
+    const hasNoDeviceData = !devices.length;
+    const isCompact = hasWarning && hasNoDeviceData;
     const isRefreshing = refreshingServers.has(server.name);
-    const serverDeviceType = detectServerDeviceType(server);
     const lastSeen = formatLastSeen(server.last_seen);
     const snapshotAge = isRefreshing
         ? "Refreshing..."
@@ -195,7 +176,6 @@ function renderServerCard(card, server) {
         <div class="server-title">
             <div class="server-identity">
                 <h3>${escapeHtml(server.name)}</h3>
-                ${serverDeviceType ? `<span class="device-pill">${serverDeviceType}</span>` : ""}
             </div>
             <span class="header-meta">${snapshotAge}</span>
         </div>
@@ -213,8 +193,8 @@ function renderServerCard(card, server) {
     const gpuGrid = document.createElement("div");
     gpuGrid.className = "gpu-grid";
 
-    if (!hasNoGpuData) {
-        server.gpus.forEach((gpu) => {
+    if (!hasNoDeviceData) {
+        devices.forEach((gpu) => {
             const gpuDiv = document.createElement("div");
             gpuDiv.className = "gpu-item";
 
@@ -226,10 +206,9 @@ function renderServerCard(card, server) {
 
             const gpuHeader = document.createElement("div");
             gpuHeader.className = "gpu-header";
-            const deviceType = formatDeviceType(gpu.device_type);
-            const gpuName = formatGpuName(gpu.name, gpu.device_type);
+            const gpuName = String(gpu.display_name || gpu.name || "");
             gpuHeader.innerHTML = `
-                <span class="gpu-name" title="${escapeHtml(gpuName)}">${deviceType} #${gpu.index} ${escapeHtml(gpuName)}</span>
+                <span class="gpu-name" title="${escapeHtml(gpuName)}">#${gpu.index} ${escapeHtml(gpuName)}</span>
             `;
             gpuDiv.appendChild(gpuHeader);
 
@@ -259,7 +238,7 @@ function renderServerCard(card, server) {
     } else if (!hasWarning) {
         const empty = document.createElement("div");
         empty.className = "gpu-empty";
-        empty.textContent = "No GPU data";
+        empty.textContent = "No device data";
         gpuGrid.appendChild(empty);
     }
 

@@ -269,7 +269,7 @@ test("refresh reuses existing server cards for stable server names", async () =>
     assert.equal(serverGrid.children[1], firstCards[1]);
 });
 
-test("gpu names remove only the nvidia prefix", async () => {
+test("device names prefer backend display names", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();
     const refreshStatus = new FakeElement();
@@ -314,6 +314,7 @@ test("gpu names remove only the nvidia prefix", async () => {
                             {
                                 index: 0,
                                 name: "NVIDIA H100 PCIe",
+                                display_name: "H100 PCIe",
                                 memory_used_mb: 1000,
                                 memory_total_mb: 81559,
                                 utilization_percent: 20,
@@ -322,6 +323,7 @@ test("gpu names remove only the nvidia prefix", async () => {
                             {
                                 index: 1,
                                 name: "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+                                display_name: "RTX PRO 6000 Blackwell Workstation Edition",
                                 memory_used_mb: 2000,
                                 memory_total_mb: 98304,
                                 utilization_percent: 40,
@@ -353,7 +355,7 @@ test("gpu names remove only the nvidia prefix", async () => {
     );
 });
 
-test("npu snapshots render npu labels", async () => {
+test("device names fall back to names without device type labels", async () => {
     const serverGrid = new FakeElement();
     const refreshButton = new FakeButton();
     const refreshStatus = new FakeElement();
@@ -425,8 +427,9 @@ test("npu snapshots render npu labels", async () => {
     const gpuGrid = serverGrid.children[0].children[1];
     const gpuHeader = gpuGrid.children[0].children[0].innerHTML;
 
-    assert.match(header, /device-pill">NPU/);
-    assert.match(gpuHeader, /NPU #0 Ascend 910B/);
+    assert.doesNotMatch(header, /device-pill/);
+    assert.match(gpuHeader, /#0 Ascend 910B/);
+    assert.doesNotMatch(gpuHeader, /NPU #0/);
 });
 
 test("per-server refresh renders fast servers before slow servers finish", async () => {
@@ -566,7 +569,7 @@ test("manual refresh leaves button enabled and skips servers already refreshing"
                         name: "gpu-a",
                         last_seen: null,
                         is_stale: true,
-                        warnings: ["Waiting for first GPU data"],
+                        warnings: ["Waiting for first data"],
                         gpus: [],
                     };
                 },
@@ -583,7 +586,7 @@ test("manual refresh leaves button enabled and skips servers already refreshing"
                                 name: "gpu-a",
                                 last_seen: null,
                                 is_stale: true,
-                                warnings: ["Waiting for first GPU data"],
+                                warnings: ["Waiting for first data"],
                                 gpus: [],
                             };
                         },
